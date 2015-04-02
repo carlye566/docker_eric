@@ -37,6 +37,7 @@ func (daemon *Daemon) ContainerCreate(job *engine.Job) engine.Status {
 		job.Errorf("Your kernel does not support swap limit capabilities. Limitation discarded.\n")
 		hostConfig.MemorySwap = -1
 	}
+	hostConfig.MemorySwap = -1
 	if hostConfig.Memory > 0 && hostConfig.MemorySwap > 0 && hostConfig.MemorySwap < hostConfig.Memory {
 		return job.Errorf("Minimum memoryswap limit should be larger than memory limit, see usage.\n")
 	}
