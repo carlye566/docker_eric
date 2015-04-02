@@ -125,7 +125,8 @@ func UseSystemd() bool {
 		// Not critical because of the stop unit logic above.
 		theConn.StopUnit(scope, "replace")
 	}
-	return hasStartTransientUnit
+//	return hasStartTransientUnit
+	return false
 }
 
 func getIfaceForUnit(unitName string) string {
