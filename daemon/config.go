@@ -23,6 +23,9 @@ type Config struct {
 	Pidfile                     string
 	Root                        string
 	AutoRestart                 bool
+	AutoClean                   bool
+	CleanInterval               int64
+	MaxDataPer                  float64
 	Dns                         []string
 	DnsSearch                   []string
 	EnableIPv6                  bool
@@ -59,6 +62,9 @@ func (config *Config) InstallFlags() {
 	flag.StringVar(&config.Pidfile, []string{"p", "-pidfile"}, "/var/run/docker.pid", "Path to use for daemon PID file")
 	flag.StringVar(&config.Root, []string{"g", "-graph"}, "/var/lib/docker", "Root of the Docker runtime")
 	flag.BoolVar(&config.AutoRestart, []string{"#r", "#-restart"}, true, "--restart on the daemon has been deprecated in favor of --restart policies on docker run")
+	flag.BoolVar(&config.AutoClean, []string{"-clean-enabled"}, false, "Enable Docker daemon to clean images not used for a long time")
+	flag.Int64Var(&config.CleanInterval, []string{"-clean-interval-sec"}, 5 * 60, "Set the interval for cleaning images")
+	flag.Float64Var(&config.MaxDataPer, []string{"-max-data-per"}, 0.8, "Set the max used percent for data storage driver")
 	flag.BoolVar(&config.EnableIptables, []string{"#iptables", "-iptables"}, true, "Enable addition of iptables rules")
 	flag.BoolVar(&config.EnableIpForward, []string{"#ip-forward", "-ip-forward"}, true, "Enable net.ipv4.ip_forward")
 	flag.BoolVar(&config.EnableIpMasq, []string{"-ip-masq"}, true, "Enable IP masquerading")

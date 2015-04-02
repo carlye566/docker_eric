@@ -443,3 +443,21 @@ func (graph *Graph) ImageRoot(id string) string {
 func (graph *Graph) Driver() graphdriver.Driver {
 	return graph.driver
 }
+
+// HeadSlice returns all heads in the graph.
+// A head is an image which is not the parent of another image in the graph.
+func (graph *Graph) HeadSlice() ([]image.Image, error) {
+	var images []image.Image
+	byParent, err := graph.ByParent()
+	if err != nil {
+		return nil, err
+	}
+	err = graph.walkAll(func(image *image.Image) {
+		// If it's not in the byParent lookup table, then
+		// it's not a parent -> so it's a head!
+		if _, exists := byParent[image.ID]; !exists {
+			images = append(images, *image)
+		}
+	})
+	return images, err
+}

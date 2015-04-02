@@ -3,11 +3,14 @@ package docker
 import (
 	"errors"
 	"github.com/docker/docker/autogen/dockerversion"
+	"github.com/docker/docker/daemon"
 	"github.com/docker/docker/daemon/graphdriver"
 	"github.com/docker/docker/graph"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/pkg/common"
+	"github.com/docker/docker/pkg/stringid"
+	"github.com/docker/docker/runconfig"
 	"github.com/docker/docker/utils"
 	"io"
 	"io/ioutil"
@@ -323,4 +326,53 @@ func testArchive(t *testing.T) archive.Archive {
 		t.Fatal(err)
 	}
 	return archive
+}
+
+func TestImageClean(t *testing.T) {
+	eng := NewTestEngine(t)
+	d := mkDaemonFromEngine(eng, t)
+	graph, _ := tempGraph(t)
+	d.SetGraph(graph)
+	defer nukeGraph(graph)
+	defer nuke(d)
+	eng.Register("image_clean", d.ImageClean)
+	createTestImage(graph, t)
+	assertNImages(graph, t, 1)
+	go daemon.StartImageClean(eng, 1 * int64(time.Second), 0)
+	//wait 10 second
+	time.Sleep(10 * time.Second)
+	//the image should have been cleaned
+	assertNImages(graph, t, 0)
+}
+
+//test won't clean the image used by a container
+func TestCleanImageUsedByContainer(t *testing.T) {
+	eng := NewTestEngine(t)
+	d := mkDaemonFromEngine(eng, t)
+	defer nuke(d)
+
+	container, _, err := d.Create(&runconfig.Config{
+		Image: GetTestImage(d).ID,
+		Cmd:   []string{"env"},
+		OpenStdin: true,
+	},
+		&runconfig.HostConfig{},
+		"",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := container.Start(); err != nil {
+		t.Fatal(err)
+	}
+	assertNImages(d.Graph(), t, 1)
+
+	eng.Register("image_clean", d.ImageClean)
+	go daemon.StartImageClean(eng, int64(time.Second), 0)
+	time.Sleep(10 * time.Second)
+	assertNImages(d.Graph(), t, 1)
+
+	container.WaitStop(-1 * time.Second)
+	time.Sleep(10 * time.Second)
+	assertNImages(d.Graph(), t, 0)
 }

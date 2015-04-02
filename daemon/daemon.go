@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -135,6 +136,7 @@ func (daemon *Daemon) Install(eng *engine.Engine) error {
 		"unpause":           daemon.ContainerUnpause,
 		"wait":              daemon.ContainerWait,
 		"image_delete":      daemon.ImageDelete, // FIXME: see above
+		"image_clean":       daemon.ImageClean,
 		"execCreate":        daemon.ContainerExecCreate,
 		"execStart":         daemon.ContainerExecStart,
 		"execResize":        daemon.ContainerExecResize,
@@ -149,6 +151,11 @@ func (daemon *Daemon) Install(eng *engine.Engine) error {
 	}
 	if err := daemon.trustStore.Install(eng); err != nil {
 		return err
+	}
+	if daemon.Config().AutoClean {
+		go StartImageClean(daemon.eng,
+				daemon.Config().CleanInterval * int64(time.Second),
+			daemon.Config().MaxDataPer)
 	}
 	// FIXME: this hack is necessary for legacy integration tests to access
 	// the daemon object.
@@ -1163,6 +1170,20 @@ func (daemon *Daemon) Nuke() error {
 // which need direct access to daemon.graph.
 // Once the tests switch to using engine and jobs, this method
 // can go away.
+func (daemon *Daemon) SetGraph(g *graph.Graph) error {
+	daemon.graph = g
+	trustKey, err := api.LoadOrCreateTrustKey(daemon.config.TrustKeyPath)
+	if err != nil {
+		return err
+	}
+	repositories, err := graph.NewTagStore(path.Join(daemon.config.Root, "repositories-"+daemon.driver.String()), g, trustKey, daemon.RegistryService)
+	if err != nil {
+		return fmt.Errorf("Couldn't create Tag store: %s", err)
+	}
+	daemon.repositories = repositories
+	return nil
+}
+
 func (daemon *Daemon) Graph() *graph.Graph {
 	return daemon.graph
 }
@@ -1245,4 +1266,13 @@ func checkKernel() error {
 		}
 	}
 	return nil
+}
+
+func StartImageClean(eng *engine.Engine, cleanInterval int64, retainPer float64) {
+	if err := eng.Job("image_clean",
+		strconv.FormatInt(cleanInterval, 10),
+		strconv.FormatFloat(retainPer, 'f', 3, 64)).Run();
+		err != nil {
+		logrus.Errorf("Clean images failed", err)
+	}
 }
