@@ -140,6 +140,7 @@ func (s *TagStore) CmdLookup(job *engine.Job) engine.Status {
 		out.SetJson("Parent", image.Parent)
 		out.SetJson("Comment", image.Comment)
 		out.SetAuto("Created", image.Created)
+		out.SetAuto("LastUseTime", image.LastUseTime)
 		out.SetJson("Container", image.Container)
 		out.SetJson("ContainerConfig", image.ContainerConfig)
 		out.Set("DockerVersion", image.DockerVersion)

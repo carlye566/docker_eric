@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/runconfig"
 	"github.com/docker/docker/utils"
@@ -24,6 +25,7 @@ type Image struct {
 	Parent          string            `json:"parent,omitempty"`
 	Comment         string            `json:"comment,omitempty"`
 	Created         time.Time         `json:"created"`
+	LastUseTime     time.Time         `json:"last_use_time"`
 	Container       string            `json:"container,omitempty"`
 	ContainerConfig runconfig.Config  `json:"container_config,omitempty"`
 	DockerVersion   string            `json:"docker_version,omitempty"`
@@ -262,4 +264,11 @@ func NewImgJSON(src []byte) (*Image, error) {
 		return nil, err
 	}
 	return ret, nil
+}
+
+func (img *Image) UpdateImageLastUseTime() {
+	img.LastUseTime = time.Now().UTC()
+	if err := StoreImage(img, nil, img.graph.ImageRoot(img.ID)); err != nil {
+		logrus.Errorf("Unable to update img.LastUseTime, img id %s", img.ID, err)
+	}
 }

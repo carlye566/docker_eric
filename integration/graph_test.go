@@ -111,6 +111,9 @@ func TestGraphCreate(t *testing.T) {
 	if img.DockerVersion != dockerversion.VERSION {
 		t.Fatalf("Wrong docker_version: should be '%s', not '%s'", dockerversion.VERSION, img.DockerVersion)
 	}
+	if img.LastUseTime.IsZero() {
+		t.Fatalf("Wrong last_use_time: should not be zero")
+	}
 	images, err := graph.Map()
 	if err != nil {
 		t.Fatal(err)
@@ -133,6 +136,7 @@ func TestRegister(t *testing.T) {
 		ID:      common.GenerateRandomID(),
 		Comment: "testing",
 		Created: time.Now(),
+		LastUseTime: time.Now(),
 	}
 	err = graph.Register(image, archive)
 	if err != nil {
@@ -151,6 +155,9 @@ func TestRegister(t *testing.T) {
 		}
 		if resultImg.Comment != image.Comment {
 			t.Fatalf("Wrong image comment. Should be '%s', not '%s'", image.Comment, resultImg.Comment)
+		}
+		if !resultImg.LastUseTime.Equal(image.LastUseTime) {
+			t.Fatalf("Wrong image LastUseTime. Should be '%s', not '%s'", image.LastUseTime, resultImg.LastUseTime)
 		}
 	}
 }

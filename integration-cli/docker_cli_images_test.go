@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"encoding/json"
 
 	"github.com/docker/docker/pkg/common"
 )
@@ -218,4 +219,64 @@ func TestImagesEnsureDanglingImageOnlyListedOnce(t *testing.T) {
 	}
 
 	logDone("images - dangling image only listed once")
+}
+
+func TestPullUpdateLastUseTime(t *testing.T) {
+	deleteImages("scratch")
+	deleteImages("busybox")
+	t1 := time.Now().UTC()
+	if err := pullImageIfNotExist("busybox"); err != nil {
+		t.Fatalf("%v", err)
+	}
+	t2 := time.Now().UTC()
+	t3, out := inspectLastUseTime(t, "busybox")
+	checkLastUseTime(t3, t1, t2, t, out)
+	//  inspect again, lastUseTime should not change
+	if t4,_ := inspectLastUseTime(t, "busybox"); !t4.Equal(t3) {
+		t.Fatalf("LastUseTime changed before %v, after %v", t3, t4)
+	}
+	deleteAllContainers()
+	logDone("images - TestPullUpdateLastUseTime")
+}
+
+func TestRunUpdateLastUseTime(t *testing.T) {
+	t1 := time.Now().UTC()
+	if err := runImage("busybox"); err != nil {
+		t.Fatalf("%v", err)
+	}
+	t2 := time.Now().UTC()
+	t3, out := inspectLastUseTime(t, "busybox")
+	checkLastUseTime(t3, t1, t2, t, out)
+	deleteAllContainers()
+	logDone("images - TestRunUpdateLastUseTime")
+}
+
+func inspectLastUseTime(t *testing.T, imgName string) (time.Time, string) {
+	inspectCmd := exec.Command(dockerBinary, "inspect", imgName)
+	imgJsonOut, _, err := runCommandWithOutput(inspectCmd)
+	if err != nil {
+		t.Fatalf("%s %s", imgJsonOut, err)
+	}
+	var stdoutJson []interface{}
+	if err := json.Unmarshal([]byte(imgJsonOut), &stdoutJson); err != nil {
+		t.Fatalf("%#v", err)
+	}
+	if len(stdoutJson) != 1 {
+		t.Fatalf("Err unmarshal imgJsonOut %s", imgJsonOut)
+	}
+	lastUseTimeStr, ok := stdoutJson[0].(map[string]interface{})["LastUseTime"].(string)
+	if !ok {
+		t.Fatalf("%#v doesn't contain key LastUseTime", stdoutJson)
+	}
+	lastUseTime, err := time.Parse(time.RFC3339Nano, lastUseTimeStr)
+	if err != nil {
+		t.Fatalf("Error parse lastUseTime %s, %#v", lastUseTimeStr, err)
+	}
+	return lastUseTime, imgJsonOut
+}
+
+func checkLastUseTime(lastUseTime, before, after time.Time, t *testing.T, str string) {
+	if before.After(lastUseTime) || after.Before(lastUseTime) {
+		t.Fatalf("Wrong lastUseTime %v, should after %v before %v, %s", lastUseTime, before, after, str)
+	}
 }

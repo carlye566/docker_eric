@@ -124,6 +124,7 @@ func (graph *Graph) Create(layerData archive.ArchiveReader, containerID, contain
 		ID:            common.GenerateRandomID(),
 		Comment:       comment,
 		Created:       time.Now().UTC(),
+		LastUseTime:   time.Now().UTC(),
 		DockerVersion: dockerversion.VERSION,
 		Author:        author,
 		Config:        config,
@@ -185,6 +186,9 @@ func (graph *Graph) Register(img *image.Image, layerData archive.ArchiveReader) 
 		return fmt.Errorf("Driver %s failed to create image rootfs %s: %s", graph.driver, img.ID, err)
 	}
 	// Apply the diff/layer
+	if img.LastUseTime.IsZero() {
+		img.LastUseTime = time.Now().UTC()
+	}
 	img.SetGraph(graph)
 	if err := image.StoreImage(img, layerData, tmp); err != nil {
 		return err
