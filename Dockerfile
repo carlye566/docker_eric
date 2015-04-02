@@ -74,7 +74,7 @@ RUN cd /usr/src/lxc \
 
 # Install Go
 ENV GO_VERSION 1.4.2
-RUN curl -sSL https://golang.org/dl/go${GO_VERSION}.src.tar.gz | tar -v -C /usr/local -xz \
+RUN curl -sSL http://golangtc.com/static/go/go${GO_VERSION}.src.tar.gz | tar -v -C /usr/local -xz \
 	&& mkdir -p /go/bin
 ENV PATH /go/bin:/usr/local/go/bin:$PATH
 ENV GOPATH /go:/go/src/github.com/docker/docker/vendor
@@ -98,11 +98,11 @@ RUN cd /usr/local/go/src \
 	done
 
 # We still support compiling with older Go, so need to grab older "gofmt"
-ENV GOFMT_VERSION 1.3.3
-RUN curl -sSL https://storage.googleapis.com/golang/go${GOFMT_VERSION}.$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C /go/bin -xz --strip-components=2 go/bin/gofmt
+#ENV GOFMT_VERSION 1.3.3
+#RUN curl -sSL https://storage.googleapis.com/golang/go${GOFMT_VERSION}.$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C /go/bin -xz --strip-components=2 go/bin/gofmt
 
 # Grab Go's cover tool for dead-simple code coverage testing
-RUN go get golang.org/x/tools/cmd/cover
+#RUN go get golang.org/x/tools/cmd/cover
 
 # TODO replace FPM with some very minimal debhelper stuff
 RUN gem install --no-rdoc --no-ri fpm --version 1.3.2
@@ -143,10 +143,10 @@ ENV DOCKER_BUILDTAGS apparmor selinux btrfs_noversion
 RUN ln -sfv $PWD/.bashrc ~/.bashrc
 
 # Get useful and necessary Hub images so we can "docker load" locally instead of pulling
-COPY contrib/download-frozen-image.sh /go/src/github.com/docker/docker/contrib/
-RUN ./contrib/download-frozen-image.sh /docker-frozen-images \
-	busybox:latest@4986bf8c15363d1c5d15512d5266f8777bfba4974ac56e3270e7760f6f0a8125 \
-	hello-world:frozen@e45a5af57b00862e5ef5782a9925979a02ba2b12dff832fd0991335f4a11e5c5
+#COPY contrib/download-frozen-image.sh /go/src/github.com/docker/docker/contrib/
+#RUN ./contrib/download-frozen-image.sh /docker-frozen-images \
+#	busybox:latest@4986bf8c15363d1c5d15512d5266f8777bfba4974ac56e3270e7760f6f0a8125 \
+#	hello-world:frozen@e45a5af57b00862e5ef5782a9925979a02ba2b12dff832fd0991335f4a11e5c5
 # see also "hack/make/.ensure-frozen-images" (which needs to be updated any time this list is)
 
 # Install man page generator
