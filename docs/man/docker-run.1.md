@@ -268,6 +268,7 @@ and foreground Docker containers.
                                'none': no networking for this container
                                'container:<name|id>': reuses another container network stack
                                'host': use the host network stack inside the container.  Note: the host mode gives the container full access to local system services such as D-bus and is therefore considered insecure.
+                               'ip': auto allocate an ip and creates a new network stack for the container
 
 **-P**, **--publish-all**=*true*|*false*
    Publish all exposed ports to random ports on the host interfaces. The default is *false*.

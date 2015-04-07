@@ -21,10 +21,12 @@ import (
 	"github.com/docker/docker/pkg/networkfs/resolvconf"
 	"github.com/docker/docker/pkg/parsers/kernel"
 	"github.com/docker/libcontainer/netlink"
+	"github.com/docker/docker/runconfig"
 )
 
 const (
 	DefaultNetworkBridge     = "docker0"
+	DefaultFixedIpNetworkBridge = "docker"
 	MaxAllocatedPortAttempts = 10
 )
 
@@ -83,7 +85,20 @@ var (
 
 	defaultBindingIP  = net.ParseIP("0.0.0.0")
 	currentInterfaces = ifaces{c: make(map[string]*networkInterface)}
+	defaultGatewayIP string
 )
+
+func init() {
+	routes, _ := netlink.NetworkGetRoutes()
+	if routes != nil {
+		for _, route := range routes {
+			if route.Default {
+				defaultGatewayIP = route.IP.String()
+				break
+			}
+		}
+	}
+}
 
 func initPortMapper() {
 	once.Do(func() {
@@ -289,6 +304,9 @@ func InitDriver(job *engine.Job) engine.Status {
 		"release_interface":  Release,
 		"allocate_port":      AllocatePort,
 		"link":               LinkContainers,
+		"register_ip":  RegisterIP,
+		"unregister_ip":UnRegisterIP,
+		"print_ip":     PrintIP,
 	} {
 		if err := job.Eng.Register(name, f); err != nil {
 			return job.Error(err)
@@ -529,9 +547,17 @@ func Allocate(job *engine.Job) engine.Status {
 		requestedIP   = net.ParseIP(job.Getenv("RequestedIP"))
 		requestedIPv6 = net.ParseIP(job.Getenv("RequestedIPv6"))
 		globalIPv6    net.IP
+		mode          = ""
 	)
 
-	ip, err = ipallocator.RequestIP(bridgeIPv4Network, requestedIP)
+	if len(job.Args) > 1 {
+		mode = job.Args[1]
+	}
+	if runconfig.NetworkMode(mode).IsIP() {
+		ip, err = ipallocator.RequestFixedIP(id, requestedIP)
+	} else {
+		ip, err = ipallocator.RequestIP(bridgeIPv4Network, requestedIP)
+	}
 	if err != nil {
 		return job.Error(err)
 	}
@@ -563,9 +589,14 @@ func Allocate(job *engine.Job) engine.Status {
 	out := engine.Env{}
 	out.Set("IP", ip.String())
 	out.Set("Mask", bridgeIPv4Network.Mask.String())
-	out.Set("Gateway", bridgeIPv4Network.IP.String())
 	out.Set("MacAddress", mac.String())
-	out.Set("Bridge", bridgeIface)
+	if runconfig.NetworkMode(mode).IsIP() {
+		out.Set("Gateway", defaultGatewayIP)
+		out.Set("Bridge", DefaultFixedIpNetworkBridge)
+	} else {
+		out.Set("Gateway", bridgeIPv4Network.IP.String())
+		out.Set("Bridge", bridgeIface)
+	}
 
 	size, _ := bridgeIPv4Network.Mask.Size()
 	out.SetInt("IPPrefixLen", size)
@@ -601,8 +632,11 @@ func Release(job *engine.Job) engine.Status {
 	var (
 		id                 = job.Args[0]
 		containerInterface = currentInterfaces.Get(id)
+		mode               = ""
 	)
-
+	if len(job.Args) > 1 {
+		mode = job.Args[1]
+	}
 	if containerInterface == nil {
 		return job.Errorf("No network information to release for %s", id)
 	}
@@ -612,9 +646,14 @@ func Release(job *engine.Job) engine.Status {
 			log.Infof("Unable to unmap port %s: %s", nat, err)
 		}
 	}
-
-	if err := ipallocator.ReleaseIP(bridgeIPv4Network, containerInterface.IP); err != nil {
-		log.Infof("Unable to release IPv4 %s", err)
+	if runconfig.NetworkMode(mode).IsIP() {
+		if err := ipallocator.ReleaseFixedIP(containerInterface.IP); err != nil {
+			log.Infof("Unable to release fixed ip %s", err)
+		}
+	} else {
+		if err := ipallocator.ReleaseIP(bridgeIPv4Network, containerInterface.IP); err != nil {
+			log.Infof("Unable to release IPv4 %s", err)
+		}
 	}
 	if globalIPv6Network != nil {
 		if err := ipallocator.ReleaseIP(globalIPv6Network, containerInterface.IPv6); err != nil {
@@ -737,4 +776,62 @@ func LinkContainers(job *engine.Job) engine.Status {
 		}
 	}
 	return engine.StatusOK
+}
+
+func RegisterIP(job *engine.Job) engine.Status {
+	ips, err := retrieveIP(job)
+	if err != nil {
+		return err
+	}
+	if err = ipallocator.RegisterFixedIP(ips); err != nil {
+		return err
+	}
+	log.Infof("Registered new fixed ip %v", ips)
+	return nil
+}
+
+func UnRegisterIP(job *engine.Job) engine.Status {
+	ips, err := retrieveIP(job)
+	if err != nil {
+		return err
+	}
+	if err = ipallocator.UnRegisterFixedIP(ips); err != nil {
+		return err
+	}
+	log.Infof("UnRegistered fixed ip %v", ips)
+	return nil
+}
+
+func PrintIP(job *engine.Job) engine.Status {
+	outs := engine.NewTable("IP", 0)
+	ipMap := ipallocator.FixedIP()
+	for ip, cid := range ipMap {
+		out := &engine.Env{}
+		out.Set("IP", ip)
+		if cid != ipallocator.FakeContainerId {
+			out.Set("Container", cid)
+		} else {
+			out.Set("Container", " ")
+		}
+		outs.Add(out)
+	}
+	outs.Sort()
+	if _, err := outs.WriteListTo(job.Stdout); err != nil {
+		return err
+	}
+	return nil
+}
+
+func retrieveIP(job *engine.Job) ([]net.IP, error) {
+	var (
+		ips []net.IP
+	)
+	for i := 0; i < len(job.Args); i++ {
+		ip := net.ParseIP(job.Args[i])
+		if ip == nil {
+			return nil, fmt.Errorf("Invalid ip address: %s", job.Args[i])
+		}
+		ips = append(ips, ip)
+	}
+	return ips, nil
 }

@@ -11,6 +11,7 @@ import (
 type Config struct {
 	Hostname        string
 	Domainname      string
+	IP              string
 	User            string
 	Memory          int64  // FIXME: we keep it for backward compatibility, it has been moved to hostConfig.
 	MemorySwap      int64  // FIXME: it has been moved to hostConfig.
@@ -40,6 +41,7 @@ func ContainerConfigFromJob(job *engine.Job) *Config {
 	config := &Config{
 		Hostname:        job.Getenv("Hostname"),
 		Domainname:      job.Getenv("Domainname"),
+		IP:              job.Getenv("IP"),
 		User:            job.Getenv("User"),
 		Memory:          job.GetenvInt64("Memory"),
 		MemorySwap:      job.GetenvInt64("MemorySwap"),

@@ -115,8 +115,11 @@ func init() {
 			{"unpause", "Unpause a paused container"},
 			{"version", "Show the Docker version information"},
 			{"wait", "Block until a container stops, then print its exit code"},
+			{"registerip", "Register a fixed ip"},
+			{"unregisterip", "UnRegister a fixed ip"},
+			{"printip", "Print fixed ip pool"},
 		} {
-			help += fmt.Sprintf("    %-10.10s%s\n", command[0], command[1])
+			help += fmt.Sprintf("    %-15.15s%s\n", command[0], command[1])
 		}
 		help += "\nRun 'docker COMMAND --help' for more information on a command."
 		fmt.Fprintf(os.Stdout, "%s\n", help)

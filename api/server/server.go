@@ -1349,6 +1349,7 @@ func createRouter(eng *engine.Engine, logging, enableCors bool, corsHeaders stri
 			"/containers/{name:.*}/stats":     getContainersStats,
 			"/containers/{name:.*}/attach/ws": wsContainersAttach,
 			"/exec/{id:.*}/json":              getExecByID,
+			"/ip/print":                       getPrintIP,
 		},
 		"POST": {
 			"/auth":                         postAuth,
@@ -1373,6 +1374,8 @@ func createRouter(eng *engine.Engine, logging, enableCors bool, corsHeaders stri
 			"/exec/{name:.*}/start":         postContainerExecStart,
 			"/exec/{name:.*}/resize":        postContainerExecResize,
 			"/containers/{name:.*}/rename":  postContainerRename,
+			"/ip/register":                  postIPRegister,
+			"/ip/unregister":                postIPUnRegister,
 		},
 		"DELETE": {
 			"/containers/{name:.*}": deleteContainers,
@@ -1611,4 +1614,80 @@ func ServeApi(job *engine.Job) engine.Status {
 	}
 
 	return engine.StatusOK
+}
+
+
+func postIPRegister(eng *engine.Engine, version version.Version, w http.ResponseWriter, r *http.Request, vars map[string]string) error {
+	var ipData engine.Env
+
+	if err := checkForJson(r); err != nil {
+		return err
+	}
+
+	if err := ipData.Decode(r.Body); err != nil {
+		return err
+	}
+
+	if ipData.Get("ip") == "" {
+		return fmt.Errorf("IP cannot be empty")
+	}
+
+	job := eng.Job("register_ip", ipData.GetList("ip")...)
+	if err := job.Run(); err != nil {
+		logrus.Errorf("%s", err.Error())
+		return err
+	}
+	w.WriteHeader(http.StatusOK)
+	return nil
+}
+
+func postIPUnRegister(eng *engine.Engine, version version.Version, w http.ResponseWriter, r *http.Request, vars map[string]string) error {
+	var ipData engine.Env
+
+	if err := checkForJson(r); err != nil {
+		return err
+	}
+
+	if err := ipData.Decode(r.Body); err != nil {
+		return err
+	}
+
+	if ipData.Get("ip") == "" {
+		return fmt.Errorf("IP cannot be empty")
+	}
+
+	job := eng.Job("unregister_ip", ipData.GetList("ip")...)
+	if err := job.Run(); err != nil {
+		logrus.Errorf("%s", err.Error())
+		return err
+	}
+	w.WriteHeader(http.StatusOK)
+	return nil
+}
+
+func getPrintIP(eng *engine.Engine, version version.Version, w http.ResponseWriter, r *http.Request, vars map[string]string) error {
+	if err := parseForm(r); err != nil {
+		return err
+	}
+	var (
+		err  error
+		outs *engine.Table
+		job  = eng.Job("print_ip")
+	)
+
+	if version.GreaterThanOrEqualTo("1.5") {
+		streamJSON(job, w, false)
+	} else if outs, err = job.Stdout.AddTable(); err != nil {
+		return err
+	}
+	if err = job.Run(); err != nil {
+		return err
+	}
+	if version.LessThan("1.5") { // Convert to legacy format
+		w.Header().Set("Content-Type", "application/json")
+		if _, err = outs.WriteListTo(w); err != nil {
+			return err
+		}
+	}
+	return nil
 }

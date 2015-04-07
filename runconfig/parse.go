@@ -2,6 +2,7 @@ package runconfig
 
 import (
 	"fmt"
+	"net"
 	"path"
 	"strconv"
 	"strings"
@@ -72,6 +73,7 @@ func Parse(cmd *flag.FlagSet, args []string) (*Config, *HostConfig, *flag.FlagSe
 		flReadonlyRootfs  = cmd.Bool([]string{"-read-only"}, false, "Mount the container's root filesystem as read only")
 		flLoggingDriver   = cmd.String([]string{"-log-driver"}, "", "Logging driver for container")
 		flCgroupParent    = cmd.String([]string{"-cgroup-parent"}, "", "Optional parent cgroup for the container")
+		flIP              = cmd.String([]string{"ip", "-ip"}, "", "Fixed IP address for the container.")
 	)
 
 	cmd.Var(&flAttach, []string{"a", "-attach"}, "Attach to STDIN, STDOUT or STDERR")
@@ -275,6 +277,12 @@ func Parse(cmd *flag.FlagSet, args []string) (*Config, *HostConfig, *flag.FlagSe
 		return nil, nil, cmd, fmt.Errorf("--net: invalid net mode: %v", err)
 	}
 
+	if *flIP != "" {
+		if parsedIP := net.ParseIP(*flIP); parsedIP == nil {
+			return nil, nil, cmd, fmt.Errorf("--ip: invalid ip: %s", *flIP)
+		}
+	}
+
 	restartPolicy, err := parseRestartPolicy(*flRestartPolicy)
 	if err != nil {
 		return nil, nil, cmd, err
@@ -283,6 +291,7 @@ func Parse(cmd *flag.FlagSet, args []string) (*Config, *HostConfig, *flag.FlagSe
 	config := &Config{
 		Hostname:        hostname,
 		Domainname:      domainname,
+		IP:              *flIP,
 		PortSpecs:       nil, // Deprecated
 		ExposedPorts:    ports,
 		User:            *flUser,
@@ -445,7 +454,7 @@ func parseKeyValueOpts(opts opts.ListOpts) ([]utils.KeyValuePair, error) {
 func parseNetMode(netMode string) (NetworkMode, error) {
 	parts := strings.Split(netMode, ":")
 	switch mode := parts[0]; mode {
-	case "bridge", "none", "host":
+	case "bridge", "none", "host", "ip":
 	case "container":
 		if len(parts) < 2 || parts[1] == "" {
 			return "", fmt.Errorf("invalid container format container:<name|id>")

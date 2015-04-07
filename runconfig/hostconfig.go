@@ -29,6 +29,10 @@ func (n NetworkMode) IsNone() bool {
 	return n == "none"
 }
 
+func (n NetworkMode) IsIP() bool {
+	return n == "ip"
+}
+
 type IpcMode string
 
 // IsPrivate indicates whether container use it's private ipc stack
