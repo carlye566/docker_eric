@@ -24,6 +24,7 @@ import (
 	"github.com/docker/docker/daemon/logger"
 	"github.com/docker/docker/daemon/logger/jsonfilelog"
 	"github.com/docker/docker/daemon/logger/syslog"
+	"github.com/docker/docker/daemon/networkdriver/bridge"
 	"github.com/docker/docker/engine"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/links"
@@ -1324,11 +1325,18 @@ func (container *Container) createDaemonEnvironment(linkedEnv []string) []string
 		fullHostname = fmt.Sprintf("%s.%s", fullHostname, container.Config.Domainname)
 	}
 	ports,_ := json.Marshal(container.NetworkSettings.Ports)
+	var containerIP string
+	if container.hostConfig.NetworkMode.IsIP() {
+		containerIP = container.NetworkSettings.IPAddress
+	} else {
+		containerIP = bridge.HostIP
+	}
 	// Setup environment
 	env := []string{
 		"PATH=" + DefaultPathEnv,
 		"HOSTNAME=" + fullHostname,
 		"GAIA_PORT_MAPPING=" + string(ports),
+		"GAIA_HOST_IP=" + containerIP,
 		// Note: we don't set HOME here because it'll get autoset intelligently
 		// based on the value of USER inside dockerinit, but only if it isn't
 		// set already (ie, that can be overridden by setting HOME via -e or ENV

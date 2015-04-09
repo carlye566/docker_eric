@@ -86,6 +86,7 @@ var (
 	defaultBindingIP  = net.ParseIP("0.0.0.0")
 	currentInterfaces = ifaces{c: make(map[string]*networkInterface)}
 	defaultGatewayIP string
+	HostIP           string
 	fixedIPBridgeIPv4Network *net.IPNet
 )
 
@@ -307,9 +308,17 @@ func InitIPMode(job *engine.Job) error {
 	defaultGatewayIP = getDefaultGateway()
 	addrv4, _, err := networkdriver.GetIfaceAddr(DefaultFixedIpNetworkBridge)
 	if err != nil {
-		return err
+		//bridge not exist
+		eth1addrv4, _, err1 := networkdriver.GetIfaceAddr("eth1")
+		if err1 == nil {
+			HostIP = eth1addrv4.(*net.IPNet).IP.String()
+		} else {
+			logrus.Errorf("eth1 not exists %v", err1)
+		}
+	} else {
+		fixedIPBridgeIPv4Network = addrv4.(*net.IPNet)
+		HostIP = fixedIPBridgeIPv4Network.IP.String()
 	}
-	fixedIPBridgeIPv4Network = addrv4.(*net.IPNet)
 	return registerNetworkJobs(job.Eng)
 }
 
