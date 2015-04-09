@@ -86,18 +86,19 @@ var (
 	defaultBindingIP  = net.ParseIP("0.0.0.0")
 	currentInterfaces = ifaces{c: make(map[string]*networkInterface)}
 	defaultGatewayIP string
+	fixedIPBridgeIPv4Network *net.IPNet
 )
 
-func init() {
+func getDefaultGateway() string {
 	routes, _ := netlink.NetworkGetRoutes()
 	if routes != nil {
 		for _, route := range routes {
 			if route.Default {
-				defaultGatewayIP = route.IP.String()
-				break
+				return route.IP.String()
 			}
 		}
 	}
+	return ""
 }
 
 func initPortMapper() {
@@ -299,6 +300,20 @@ func InitDriver(job *engine.Job) engine.Status {
 	// https://github.com/docker/docker/issues/2768
 	job.Eng.Hack_SetGlobalVar("httpapi.bridgeIP", bridgeIPv4Network.IP)
 
+	return InitIPMode(job)
+}
+
+func InitIPMode(job *engine.Job) error {
+	defaultGatewayIP = getDefaultGateway()
+	addrv4, _, err := networkdriver.GetIfaceAddr(DefaultFixedIpNetworkBridge)
+	if err != nil {
+		return err
+	}
+	fixedIPBridgeIPv4Network = addrv4.(*net.IPNet)
+	return registerNetworkJobs(job.Eng)
+}
+
+func registerNetworkJobs(job *engine.Job) error {
 	for name, f := range map[string]engine.Handler{
 		"allocate_interface": Allocate,
 		"release_interface":  Release,
@@ -588,18 +603,20 @@ func Allocate(job *engine.Job) engine.Status {
 
 	out := engine.Env{}
 	out.Set("IP", ip.String())
-	out.Set("Mask", bridgeIPv4Network.Mask.String())
 	out.Set("MacAddress", mac.String())
 	if runconfig.NetworkMode(mode).IsIP() {
+		out.Set("Mask", fixedIPBridgeIPv4Network.Mask.String())
 		out.Set("Gateway", defaultGatewayIP)
 		out.Set("Bridge", DefaultFixedIpNetworkBridge)
+		size, _ := fixedIPBridgeIPv4Network.Mask.Size()
+		out.SetInt("IPPrefixLen", size)
 	} else {
+		out.Set("Mask", bridgeIPv4Network.Mask.String())
 		out.Set("Gateway", bridgeIPv4Network.IP.String())
 		out.Set("Bridge", bridgeIface)
+		size, _ := bridgeIPv4Network.Mask.Size()
+		out.SetInt("IPPrefixLen", size)
 	}
-
-	size, _ := bridgeIPv4Network.Mask.Size()
-	out.SetInt("IPPrefixLen", size)
 
 	// If linklocal IPv6
 	localIPv6Net, err := linkLocalIPv6FromMac(mac.String())

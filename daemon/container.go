@@ -1238,7 +1238,7 @@ func (container *Container) initializeNetworking() error {
 		container.Config.Domainname = nc.Config.Domainname
 		return nil
 	}
-	if container.daemon.config.DisableNetwork {
+	if container.daemon.config.DisableNetwork && !container.hostConfig.NetworkMode.IsIP() {
 		container.Config.NetworkDisabled = true
 		return container.buildHostnameAndHostsFiles("127.0.1.1")
 	}

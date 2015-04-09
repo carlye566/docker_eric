@@ -966,6 +966,11 @@ func NewDaemonFromDirectory(config *Config, eng *engine.Engine) (*Daemon, error)
 		if err := job.Run(); err != nil {
 			return nil, err
 		}
+	} else {
+		job := eng.Job("init_ipmode")
+		if err := job.Run(); err != nil {
+			return nil, err
+		}
 	}
 
 	graphdbPath := path.Join(config.Root, "linkgraph.db")

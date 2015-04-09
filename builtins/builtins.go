@@ -53,7 +53,15 @@ func remote(eng *engine.Engine) error {
 // These components should be broken off into plugins of their own.
 //
 func daemon(eng *engine.Engine) error {
-	return eng.Register("init_networkdriver", bridge.InitDriver)
+	for name, f := range map[string]engine.Handler{
+		"init_networkdriver": bridge.InitDriver,
+		"init_ipmode"       : bridge.InitIPMode,
+	} {
+		if err := eng.Register(name, f); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // builtins jobs independent of any subsystem
