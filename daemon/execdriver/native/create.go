@@ -106,7 +106,7 @@ func (d *driver) createNetwork(container *configs.Config, c *execdriver.Command)
 	}
 	if c.Network.Interface != nil {
 		vethNetwork := configs.Network{
-			Name:              "eth0",
+			Name:              "eth1",
 			HostInterfaceName: iName,
 			Mtu:               c.Network.Mtu,
 			Address:           fmt.Sprintf("%s/%d", c.Network.Interface.IPAddress, c.Network.Interface.IPPrefixLen),
