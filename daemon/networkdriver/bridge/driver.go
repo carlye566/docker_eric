@@ -305,6 +305,7 @@ func InitDriver(job *engine.Job) engine.Status {
 }
 
 func InitIPMode(job *engine.Job) error {
+	initPortMapper()
 	defaultGatewayIP = getDefaultGateway()
 	addrv4, _, err := networkdriver.GetIfaceAddr(DefaultFixedIpNetworkBridge)
 	if err != nil {
