@@ -170,7 +170,7 @@ func (daemon *Daemon) canDeleteImage(imgID string, force bool) error {
 	return nil
 }
 
-func (daemon *Daemon) ImageClean(job *engine.Job) error {
+func (daemon *Daemon) ImageClean(job *engine.Job) engine.Status {
 	isDevmapper := false
 	var driver *devmapper.Driver
 	if daemon.GraphDriver().String() == "devicemapper" {
@@ -179,11 +179,11 @@ func (daemon *Daemon) ImageClean(job *engine.Job) error {
 	}
 	cleanInterval, err := strconv.ParseInt(job.Args[0], 10, 64)
 	if err != nil {
-		return err
+		return job.Error(err)
 	}
 	retainPer, err := strconv.ParseFloat(job.Args[1], 64)
 	if err != nil {
-		return err
+		return job.Error(err)
 	}
 	log.Infof("Images clean thread started, graph driver type %s", daemon.GraphDriver().String())
 	for {
@@ -213,6 +213,6 @@ func (daemon *Daemon) ImageClean(job *engine.Job) error {
 			}
 		}
 	}
-	return nil
+	return engine.StatusOK
 }
 

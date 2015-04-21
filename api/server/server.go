@@ -1634,7 +1634,7 @@ func postIPRegister(eng *engine.Engine, version version.Version, w http.Response
 
 	job := eng.Job("register_ip", ipData.GetList("ip")...)
 	if err := job.Run(); err != nil {
-		logrus.Errorf("%s", err.Error())
+		log.Errorf("%s", err.Error())
 		return err
 	}
 	w.WriteHeader(http.StatusOK)
@@ -1658,7 +1658,7 @@ func postIPUnRegister(eng *engine.Engine, version version.Version, w http.Respon
 
 	job := eng.Job("unregister_ip", ipData.GetList("ip")...)
 	if err := job.Run(); err != nil {
-		logrus.Errorf("%s", err.Error())
+		log.Errorf("%s", err.Error())
 		return err
 	}
 	w.WriteHeader(http.StatusOK)

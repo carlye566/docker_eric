@@ -304,7 +304,7 @@ func InitDriver(job *engine.Job) engine.Status {
 	return InitIPMode(job)
 }
 
-func InitIPMode(job *engine.Job) error {
+func InitIPMode(job *engine.Job) engine.Status {
 	initPortMapper()
 	defaultGatewayIP = getDefaultGateway()
 	addrv4, _, err := networkdriver.GetIfaceAddr(DefaultFixedIpNetworkBridge)
@@ -314,16 +314,16 @@ func InitIPMode(job *engine.Job) error {
 		if err1 == nil {
 			HostIP = eth1addrv4.(*net.IPNet).IP.String()
 		} else {
-			logrus.Errorf("eth1 not exists %v", err1)
+			log.Errorf("eth1 not exists %v", err1)
 		}
 	} else {
 		fixedIPBridgeIPv4Network = addrv4.(*net.IPNet)
 		HostIP = fixedIPBridgeIPv4Network.IP.String()
 	}
-	return registerNetworkJobs(job.Eng)
+	return registerNetworkJobs(job)
 }
 
-func registerNetworkJobs(job *engine.Job) error {
+func registerNetworkJobs(job *engine.Job) engine.Status {
 	for name, f := range map[string]engine.Handler{
 		"allocate_interface": Allocate,
 		"release_interface":  Release,
@@ -808,25 +808,25 @@ func LinkContainers(job *engine.Job) engine.Status {
 func RegisterIP(job *engine.Job) engine.Status {
 	ips, err := retrieveIP(job)
 	if err != nil {
-		return err
+		return job.Error(err)
 	}
 	if err = ipallocator.RegisterFixedIP(ips); err != nil {
-		return err
+		return job.Error(err)
 	}
 	log.Infof("Registered new fixed ip %v", ips)
-	return nil
+	return engine.StatusOK
 }
 
 func UnRegisterIP(job *engine.Job) engine.Status {
 	ips, err := retrieveIP(job)
 	if err != nil {
-		return err
+		return job.Error(err)
 	}
 	if err = ipallocator.UnRegisterFixedIP(ips); err != nil {
-		return err
+		return job.Error(err)
 	}
 	log.Infof("UnRegistered fixed ip %v", ips)
-	return nil
+	return engine.StatusOK
 }
 
 func PrintIP(job *engine.Job) engine.Status {
@@ -844,9 +844,9 @@ func PrintIP(job *engine.Job) engine.Status {
 	}
 	outs.Sort()
 	if _, err := outs.WriteListTo(job.Stdout); err != nil {
-		return err
+		return job.Error(err)
 	}
-	return nil
+	return engine.StatusOK
 }
 
 func retrieveIP(job *engine.Job) ([]net.IP, error) {

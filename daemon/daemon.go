@@ -1181,7 +1181,7 @@ func (daemon *Daemon) SetGraph(g *graph.Graph) error {
 	if err != nil {
 		return err
 	}
-	repositories, err := graph.NewTagStore(path.Join(daemon.config.Root, "repositories-"+daemon.driver.String()), g, trustKey, daemon.RegistryService)
+	repositories, err := graph.NewTagStore(path.Join(daemon.config.Root, "repositories-"+daemon.driver.String()), g, trustKey)
 	if err != nil {
 		return fmt.Errorf("Couldn't create Tag store: %s", err)
 	}
@@ -1278,6 +1278,6 @@ func StartImageClean(eng *engine.Engine, cleanInterval int64, retainPer float64)
 		strconv.FormatInt(cleanInterval, 10),
 		strconv.FormatFloat(retainPer, 'f', 3, 64)).Run();
 		err != nil {
-		logrus.Errorf("Clean images failed", err)
+		log.Errorf("Clean images failed", err)
 	}
 }
