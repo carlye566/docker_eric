@@ -23,6 +23,7 @@ var (
 		"blkio":      &BlkioGroup{},
 		"perf_event": &PerfEventGroup{},
 		"freezer":    &FreezerGroup{},
+		"net_cls":    &NetClsGroup{},
 	}
 	CgroupProcesses = "cgroup.procs"
 )
