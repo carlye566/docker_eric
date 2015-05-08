@@ -968,6 +968,8 @@ func NewDaemonFromDirectory(config *Config, eng *engine.Engine) (*Daemon, error)
 		}
 	} else {
 		job := eng.Job("init_ipmode")
+
+		job.SetenvBool("EnableIptables", config.EnableIptables)
 		if err := job.Run(); err != nil {
 			return nil, err
 		}

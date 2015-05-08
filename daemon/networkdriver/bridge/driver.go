@@ -28,6 +28,8 @@ const (
 	DefaultNetworkBridge     = "docker0"
 	DefaultFixedIpNetworkBridge = "docker"
 	MaxAllocatedPortAttempts = 10
+
+	RestrictChain = "RESTRICT"
 )
 
 // Network interface represents the networking stack of a container
@@ -88,6 +90,7 @@ var (
 	defaultGatewayIP string
 	HostIP           string
 	fixedIPBridgeIPv4Network *net.IPNet
+	enableIPTables    = false
 )
 
 func getDefaultGateway() string {
@@ -114,7 +117,6 @@ func InitDriver(job *engine.Job) engine.Status {
 		networkv6      *net.IPNet
 		addrv4         net.Addr
 		addrsv6        []net.Addr
-		enableIPTables = job.GetenvBool("EnableIptables")
 		enableIPv6     = job.GetenvBool("EnableIPv6")
 		icc            = job.GetenvBool("InterContainerCommunication")
 		ipMasq         = job.GetenvBool("EnableIpMasq")
@@ -124,6 +126,7 @@ func InitDriver(job *engine.Job) engine.Status {
 		fixedCIDR      = job.Getenv("FixedCIDR")
 		fixedCIDRv6    = job.Getenv("FixedCIDRv6")
 	)
+	enableIPTables = job.GetenvBool("EnableIptables")
 
 	// try to modprobe bridge first
 	// see gh#12177
@@ -234,7 +237,6 @@ func InitDriver(job *engine.Job) engine.Status {
 		if err := setupIPTables(addrv4, icc, ipMasq); err != nil {
 			return job.Error(err)
 		}
-
 	}
 
 	if ipForward {
@@ -305,6 +307,12 @@ func InitDriver(job *engine.Job) engine.Status {
 }
 
 func InitIPMode(job *engine.Job) engine.Status {
+	enableIPTables = job.GetenvBool("EnableIptables")
+	if enableIPTables {
+		if err := initRestrictChain(); err != nil {
+			return job.Error(err)
+		}
+	}
 	initPortMapper()
 	defaultGatewayIP = getDefaultGateway()
 	addrv4, _, err := networkdriver.GetIfaceAddr(DefaultFixedIpNetworkBridge)
@@ -572,12 +580,10 @@ func Allocate(job *engine.Job) engine.Status {
 		requestedIP   = net.ParseIP(job.Getenv("RequestedIP"))
 		requestedIPv6 = net.ParseIP(job.Getenv("RequestedIPv6"))
 		globalIPv6    net.IP
-		mode          = ""
+		mode          = job.Getenv("Mode")
+		restrictIPs   = job.Getenv("RestrictIP")
 	)
 
-	if len(job.Args) > 1 {
-		mode = job.Args[1]
-	}
 	if runconfig.NetworkMode(mode).IsIP() {
 		ip, err = ipallocator.RequestFixedIP(id, requestedIP)
 	} else {
@@ -585,6 +591,15 @@ func Allocate(job *engine.Job) engine.Status {
 	}
 	if err != nil {
 		return job.Error(err)
+	}
+	if enableIPTables {
+		var bridgeName = DefaultNetworkBridge
+		if runconfig.NetworkMode(mode).IsIP() {
+			bridgeName = DefaultFixedIpNetworkBridge
+		}
+		if err := setupRestrictIPTables(restrictIPs, ip.String(), bridgeName); err != nil {
+			return job.Error(err)
+		}
 	}
 
 	// If no explicit mac address was given, generate a random one.
@@ -659,11 +674,9 @@ func Release(job *engine.Job) engine.Status {
 	var (
 		id                 = job.Args[0]
 		containerInterface = currentInterfaces.Get(id)
-		mode               = ""
+		mode               = job.Getenv("Mode")
+		restrictIPs        = job.Getenv("RestrictIP")
 	)
-	if len(job.Args) > 1 {
-		mode = job.Args[1]
-	}
 	if containerInterface == nil {
 		return job.Errorf("No network information to release for %s", id)
 	}
@@ -677,9 +690,19 @@ func Release(job *engine.Job) engine.Status {
 		if err := ipallocator.ReleaseFixedIP(containerInterface.IP); err != nil {
 			log.Infof("Unable to release fixed ip %s", err)
 		}
+		if enableIPTables {
+			if err1 := removeRestrictIPTables(restrictIPs, containerInterface.IP.String(), DefaultFixedIpNetworkBridge); err1 != nil {
+				log.Infof("Unable to remove iptables rule %s", err1)
+			}
+		}
 	} else {
 		if err := ipallocator.ReleaseIP(bridgeIPv4Network, containerInterface.IP); err != nil {
 			log.Infof("Unable to release IPv4 %s", err)
+		}
+		if enableIPTables {
+			if err1 := removeRestrictIPTables(restrictIPs, containerInterface.IP.String(), DefaultNetworkBridge); err1 != nil {
+				log.Infof("Unable to remove iptables rule %s", err1)
+			}
 		}
 	}
 	if globalIPv6Network != nil {
@@ -861,4 +884,55 @@ func retrieveIP(job *engine.Job) ([]net.IP, error) {
 		ips = append(ips, ip)
 	}
 	return ips, nil
+}
+
+func initRestrictChain() error {
+	//set up restrict chain if it doesn't exist
+	if _, err := iptables.Raw("-t", string(iptables.Filter), "-n", "-L", RestrictChain); err != nil {
+		if output, err := iptables.Raw("-t", string(iptables.Filter), "-N", RestrictChain); err != nil {
+			return err
+		} else if len(output) != 0 {
+			return fmt.Errorf("Could not create %s/%s chain: %s", iptables.Filter, RestrictChain, output)
+		}
+		if _, err := iptables.Raw("-A", RestrictChain, "-j", "DROP"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func setupRestrictIPTables(restrictIP, sourceIP, bridge string) error {
+	if restrictIP != "" {
+		ips := strings.Split(restrictIP, ",")
+		log.Debugf("restrictIP %s, ips %v", restrictIP, ips)
+		var cleanups [][]string
+		_, err := iptables.Raw("-A", "FORWARD", "-i", bridge, "!", "-o", bridge, "-s", sourceIP, "-j", RestrictChain)
+		if err != nil {
+			iptables.Cleanup(cleanups)
+			return err
+		}
+		cleanups = append(cleanups, []string {"-D", "FORWARD", "-i", bridge, "!", "-o", bridge, "-s", sourceIP, "-j", RestrictChain})
+		for _, ip := range ips {
+			_, err := iptables.Raw("-I", RestrictChain, "1", "-s", sourceIP, "-d", ip, "-j", "ACCEPT")
+			if err != nil {
+				iptables.Cleanup(cleanups)
+				return err
+			}
+			cleanups = append(cleanups, []string {"-D", RestrictChain, "-s", sourceIP, "-d", ip, "-j", "ACCEPT"})
+		}
+	}
+	return nil
+}
+
+func removeRestrictIPTables(restrictIP, sourceIP, bridge string) error {
+	if restrictIP != "" {
+		ips := strings.Split(restrictIP, ",")
+		var cleanups [][]string
+		cleanups = append(cleanups, []string {"-D", "FORWARD", "-i", bridge, "!", "-o", bridge, "-s", sourceIP, "-j", RestrictChain})
+		for _, ip := range ips {
+			cleanups = append(cleanups, []string {"-D", RestrictChain, "-s", sourceIP, "-d", ip, "-j", "ACCEPT"})
+		}
+		return iptables.Cleanup(cleanups)
+	}
+	return nil
 }

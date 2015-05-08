@@ -536,11 +536,13 @@ func (container *Container) AllocateNetwork() error {
 		eng = container.daemon.eng
 	)
 
-	job := eng.Job("allocate_interface", container.ID, string(mode))
+	job := eng.Job("allocate_interface", container.ID)
 	if container.Config.IP != "" {
 		job.Setenv("RequestedIP", container.Config.IP)
 	}
+	job.Setenv("Mode", string(mode))
 	job.Setenv("RequestedMac", container.Config.MacAddress)
+	job.Setenv("RestrictIP", container.Config.RestrictIP)
 	if env, err = job.Stdout.AddEnv(); err != nil {
 		return err
 	}
@@ -554,12 +556,18 @@ func (container *Container) AllocateNetwork() error {
 
 	if container.Config.PortSpecs != nil {
 		if err = migratePortMappings(container.Config, container.hostConfig); err != nil {
-			eng.Job("release_interface", container.ID, string(mode)).Run()
+			job := eng.Job("release_interface", container.ID)
+			job.Setenv("Mode", string(mode))
+			job.Setenv("RestrictIP", container.Config.RestrictIP)
+			job.Run()
 			return err
 		}
 		container.Config.PortSpecs = nil
 		if err = container.WriteHostConfig(); err != nil {
-			eng.Job("release_interface", container.ID, string(mode)).Run()
+			job := eng.Job("release_interface", container.ID)
+			job.Setenv("Mode", string(mode))
+			job.Setenv("RestrictIP", container.Config.RestrictIP)
+			job.Run()
 			return err
 		}
 	}
@@ -589,7 +597,10 @@ func (container *Container) AllocateNetwork() error {
 
 	for port := range portSpecs {
 		if err = container.allocatePort(eng, port, bindings); err != nil {
-			eng.Job("release_interface", container.ID, string(mode)).Run()
+			job := eng.Job("release_interface", container.ID)
+			job.Setenv("Mode", string(mode))
+			job.Setenv("RestrictIP", container.Config.RestrictIP)
+			job.Run()
 			return err
 		}
 	}
@@ -616,8 +627,10 @@ func (container *Container) ReleaseNetwork() {
 	}
 	eng := container.daemon.eng
 
-	job := eng.Job("release_interface", container.ID, string(container.hostConfig.NetworkMode))
+	job := eng.Job("release_interface", container.ID)
 	job.SetenvBool("overrideShutdown", true)
+	job.Setenv("Mode", string(container.hostConfig.NetworkMode))
+	job.Setenv("RestrictIP", container.Config.RestrictIP)
 	job.Run()
 	container.NetworkSettings = &NetworkSettings{}
 }
@@ -638,9 +651,11 @@ func (container *Container) RestoreNetwork() error {
 	eng := container.daemon.eng
 
 	// Re-allocate the interface with the same IP and MAC address.
-	job := eng.Job("allocate_interface", container.ID, string(mode))
+	job := eng.Job("allocate_interface", container.ID)
+	job.Setenv("Mode", string(mode))
 	job.Setenv("RequestedIP", container.NetworkSettings.IPAddress)
 	job.Setenv("RequestedMac", container.NetworkSettings.MacAddress)
+	job.Setenv("RestrictIP", container.Config.RestrictIP)
 	if err := job.Run(); err != nil {
 		return err
 	}

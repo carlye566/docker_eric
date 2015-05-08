@@ -297,3 +297,15 @@ func Raw(args ...string) ([]byte, error) {
 
 	return output, err
 }
+
+func Cleanup(cleanups [][]string) error {
+	var ret error
+	for _, str := range cleanups {
+		_, err := Raw(str...)
+		if err != nil {
+			ret = err
+			log.Errorf("Error clean iptables %s", str)
+		}
+	}
+	return ret
+}
