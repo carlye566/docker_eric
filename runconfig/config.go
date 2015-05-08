@@ -36,6 +36,7 @@ type Config struct {
 	OnBuild         []string
 	Labels          map[string]string
 	RestrictIP      string
+	MarkNum         int64
 }
 
 func ContainerConfigFromJob(job *engine.Job) *Config {
@@ -59,6 +60,7 @@ func ContainerConfigFromJob(job *engine.Job) *Config {
 		NetworkDisabled: job.GetenvBool("NetworkDisabled"),
 		MacAddress:      job.Getenv("MacAddress"),
 		RestrictIP:      job.Getenv("RestrictIP"),
+		MarkNum:         job.GetenvInt64("MarkNum"),
 	}
 	job.GetenvJson("ExposedPorts", &config.ExposedPorts)
 	job.GetenvJson("Volumes", &config.Volumes)

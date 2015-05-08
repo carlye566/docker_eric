@@ -75,6 +75,7 @@ func Parse(cmd *flag.FlagSet, args []string) (*Config, *HostConfig, *flag.FlagSe
 		flCgroupParent    = cmd.String([]string{"-cgroup-parent"}, "", "Optional parent cgroup for the container")
 		flIP              = cmd.String([]string{"ip", "-ip"}, "", "Fixed IP address for the container.")
 		flRestrictIP      = cmd.String([]string{"-restrict-ip"}, "", "Comma separated restricted IP addresses the container allowed to visit.")
+		flMarkNum         = cmd.Int64([]string{"-set-mark"}, 0, "Used to tag network packet of containers")
 	)
 
 	cmd.Var(&flAttach, []string{"a", "-attach"}, "Attach to STDIN, STDOUT or STDERR")
@@ -288,7 +289,6 @@ func Parse(cmd *flag.FlagSet, args []string) (*Config, *HostConfig, *flag.FlagSe
 	if err != nil {
 		return nil, nil, cmd, err
 	}
-
 	config := &Config{
 		Hostname:        hostname,
 		Domainname:      domainname,
@@ -315,6 +315,7 @@ func Parse(cmd *flag.FlagSet, args []string) (*Config, *HostConfig, *flag.FlagSe
 		WorkingDir:      *flWorkingDir,
 		Labels:          convertKVStringsToMap(labels),
 		RestrictIP:      *flRestrictIP,
+		MarkNum:         *flMarkNum,
 	}
 
 	hostConfig := &HostConfig{

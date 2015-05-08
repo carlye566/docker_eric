@@ -543,6 +543,7 @@ func (container *Container) AllocateNetwork() error {
 	job.Setenv("Mode", string(mode))
 	job.Setenv("RequestedMac", container.Config.MacAddress)
 	job.Setenv("RestrictIP", container.Config.RestrictIP)
+	job.SetenvInt64("MarkNum", container.Config.MarkNum)
 	if env, err = job.Stdout.AddEnv(); err != nil {
 		return err
 	}
@@ -559,6 +560,7 @@ func (container *Container) AllocateNetwork() error {
 			job := eng.Job("release_interface", container.ID)
 			job.Setenv("Mode", string(mode))
 			job.Setenv("RestrictIP", container.Config.RestrictIP)
+			job.SetenvInt64("MarkNum", container.Config.MarkNum)
 			job.Run()
 			return err
 		}
@@ -567,6 +569,7 @@ func (container *Container) AllocateNetwork() error {
 			job := eng.Job("release_interface", container.ID)
 			job.Setenv("Mode", string(mode))
 			job.Setenv("RestrictIP", container.Config.RestrictIP)
+			job.SetenvInt64("MarkNum", container.Config.MarkNum)
 			job.Run()
 			return err
 		}
@@ -600,6 +603,7 @@ func (container *Container) AllocateNetwork() error {
 			job := eng.Job("release_interface", container.ID)
 			job.Setenv("Mode", string(mode))
 			job.Setenv("RestrictIP", container.Config.RestrictIP)
+			job.SetenvInt64("MarkNum", container.Config.MarkNum)
 			job.Run()
 			return err
 		}
@@ -631,6 +635,7 @@ func (container *Container) ReleaseNetwork() {
 	job.SetenvBool("overrideShutdown", true)
 	job.Setenv("Mode", string(container.hostConfig.NetworkMode))
 	job.Setenv("RestrictIP", container.Config.RestrictIP)
+	job.SetenvInt64("MarkNum", container.Config.MarkNum)
 	job.Run()
 	container.NetworkSettings = &NetworkSettings{}
 }
@@ -656,6 +661,7 @@ func (container *Container) RestoreNetwork() error {
 	job.Setenv("RequestedIP", container.NetworkSettings.IPAddress)
 	job.Setenv("RequestedMac", container.NetworkSettings.MacAddress)
 	job.Setenv("RestrictIP", container.Config.RestrictIP)
+	job.SetenvInt64("MarkNum", container.Config.MarkNum)
 	if err := job.Run(); err != nil {
 		return err
 	}

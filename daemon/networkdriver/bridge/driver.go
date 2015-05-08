@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -30,6 +31,7 @@ const (
 	MaxAllocatedPortAttempts = 10
 
 	RestrictChain = "RESTRICT"
+	MarkChain = "MARK-DOCKER"
 )
 
 // Network interface represents the networking stack of a container
@@ -312,6 +314,9 @@ func InitIPMode(job *engine.Job) engine.Status {
 		if err := initRestrictChain(); err != nil {
 			return job.Error(err)
 		}
+		if err := initMarkChain(); err != nil {
+			return job.Error(err)
+		}
 	}
 	initPortMapper()
 	defaultGatewayIP = getDefaultGateway()
@@ -582,8 +587,8 @@ func Allocate(job *engine.Job) engine.Status {
 		globalIPv6    net.IP
 		mode          = job.Getenv("Mode")
 		restrictIPs   = job.Getenv("RestrictIP")
+		markNum       = job.GetenvInt64("MarkNum")
 	)
-
 	if runconfig.NetworkMode(mode).IsIP() {
 		ip, err = ipallocator.RequestFixedIP(id, requestedIP)
 	} else {
@@ -599,6 +604,11 @@ func Allocate(job *engine.Job) engine.Status {
 		}
 		if err := setupRestrictIPTables(restrictIPs, ip.String(), bridgeName); err != nil {
 			return job.Error(err)
+		}
+		if markNum != 0 {
+			if err := setupMarkIPTables(ip.String(), bridgeName, markNum); err != nil {
+				return job.Error(err);
+			}
 		}
 	}
 
@@ -676,6 +686,7 @@ func Release(job *engine.Job) engine.Status {
 		containerInterface = currentInterfaces.Get(id)
 		mode               = job.Getenv("Mode")
 		restrictIPs        = job.Getenv("RestrictIP")
+		markNum            = job.GetenvInt64("MarkNum")
 	)
 	if containerInterface == nil {
 		return job.Errorf("No network information to release for %s", id)
@@ -694,6 +705,11 @@ func Release(job *engine.Job) engine.Status {
 			if err1 := removeRestrictIPTables(restrictIPs, containerInterface.IP.String(), DefaultFixedIpNetworkBridge); err1 != nil {
 				log.Infof("Unable to remove iptables rule %s", err1)
 			}
+			if markNum != 0 {
+				if err := removeMarkIPTables(containerInterface.IP.String(), DefaultFixedIpNetworkBridge, markNum); err != nil {
+					log.Infof("Unable to remove iptables rule %s", err)
+				}
+			}
 		}
 	} else {
 		if err := ipallocator.ReleaseIP(bridgeIPv4Network, containerInterface.IP); err != nil {
@@ -702,6 +718,11 @@ func Release(job *engine.Job) engine.Status {
 		if enableIPTables {
 			if err1 := removeRestrictIPTables(restrictIPs, containerInterface.IP.String(), DefaultNetworkBridge); err1 != nil {
 				log.Infof("Unable to remove iptables rule %s", err1)
+			}
+			if markNum != 0 {
+				if err := removeMarkIPTables(containerInterface.IP.String(), DefaultNetworkBridge, markNum); err != nil {
+					log.Infof("Unable to remove iptables rule %s", err)
+				}
 			}
 		}
 	}
@@ -933,6 +954,40 @@ func removeRestrictIPTables(restrictIP, sourceIP, bridge string) error {
 			cleanups = append(cleanups, []string {"-D", RestrictChain, "-s", sourceIP, "-d", ip, "-j", "ACCEPT"})
 		}
 		return iptables.Cleanup(cleanups)
+	}
+	return nil
+}
+
+func initMarkChain() error {
+	//set up mark chain if it doesn't exist
+	if _, err := iptables.Raw("-t", string(iptables.Mangle), "-n", "-L", MarkChain); err != nil {
+		if output, err := iptables.Raw("-t", string(iptables.Mangle), "-N", MarkChain); err != nil {
+			return err
+		} else if len(output) != 0 {
+			return fmt.Errorf("Could not create %s/%s chain: %s", iptables.Mangle, MarkChain, output)
+		}
+		if _, err := iptables.Raw("-t", string(iptables.Mangle), "-A", "PREROUTING", "-i", DefaultNetworkBridge, "-j", MarkChain); err != nil {
+			return err
+		}
+		if fixedIPBridgeIPv4Network != nil {
+			if _, err := iptables.Raw("-t", string(iptables.Mangle), "-A", "PREROUTING", "-i", DefaultFixedIpNetworkBridge, "-j", MarkChain); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func setupMarkIPTables(ip, bridge string, num int64) error {
+	if _, err := iptables.Raw("-t", string(iptables.Mangle), "-A", MarkChain, "-s", ip, "-i", bridge, "-j", "MARK", "--set-mark", strconv.FormatInt(num, 10)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func removeMarkIPTables(ip, bridge string, num int64) error {
+	if _, err := iptables.Raw("-t", string(iptables.Mangle), "-D", MarkChain, "-s", ip, "-i", bridge, "-j", "MARK", "--set-mark", strconv.FormatInt(num, 10)); err != nil {
+		return err
 	}
 	return nil
 }
