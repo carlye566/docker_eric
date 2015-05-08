@@ -927,7 +927,7 @@ func setupRestrictIPTables(restrictIP, sourceIP, bridge string) error {
 		ips := strings.Split(restrictIP, ",")
 		log.Debugf("restrictIP %s, ips %v", restrictIP, ips)
 		var cleanups [][]string
-		_, err := iptables.Raw("-A", "FORWARD", "-i", bridge, "!", "-o", bridge, "-s", sourceIP, "-j", RestrictChain)
+		_, err := iptables.Raw("-I", "FORWARD", "1", "-i", bridge, "!", "-o", bridge, "-s", sourceIP, "-j", RestrictChain)
 		if err != nil {
 			iptables.Cleanup(cleanups)
 			return err
