@@ -47,15 +47,22 @@ type Manager struct {
 // The absolute path to the root of the cgroup hierarchies.
 var cgroupRootLock sync.Mutex
 var cgroupRoot string
-var dockerGid int = 496
+var dockerGid int = 0
 var filePerm = os.FileMode(0664)
 var dirPerm = os.FileMode(0775)
+var once sync.Once
 
-func init() {
-	info, _ := os.Stat("/var/run/docker.sock")
-	if info != nil {
-		dockerGid = int(info.Sys().(*syscall.Stat_t).Gid)
-	}
+func getDockerGid() {
+	once.Do(func() {
+		info, err := os.Stat("/var/run/docker.sock")
+		log.Infof("get docker gid")
+		if info != nil {
+			dockerGid = int(info.Sys().(*syscall.Stat_t).Gid)
+			log.Infof("docker gid %d", dockerGid)
+		} else {
+			log.Errorf("failed to get docker gid, %v", err)
+		}
+	})
 }
 
 // Gets the cgroupRoot.
@@ -264,6 +271,7 @@ func (raw *data) path(subsystem string) (string, error) {
 }
 
 func (raw *data) join(subsystem string) (string, error) {
+	getDockerGid()
 	oldMask := syscall.Umask(0)
 	defer syscall.Umask(oldMask)
 	path, err := raw.path(subsystem)
@@ -295,6 +303,7 @@ func (raw *data) join(subsystem string) (string, error) {
 }
 
 func writeFile(dir, file, data string) error {
+	getDockerGid()
 	oldMask := syscall.Umask(0)
 	defer syscall.Umask(oldMask)
 	fileName := filepath.Join(dir, file)
