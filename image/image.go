@@ -70,7 +70,7 @@ func LoadImage(root string) (*Image, error) {
 		// display negative sizes on 32-bit machines:
 		size, err := strconv.ParseInt(string(buf), 10, 64)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("Error parse image size as int: %s", err.Error())
 		}
 		img.Size = int64(size)
 	}
