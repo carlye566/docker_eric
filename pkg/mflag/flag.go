@@ -113,7 +113,10 @@ func newBoolValue(val bool, p *bool) *boolValue {
 func (b *boolValue) Set(s string) error {
 	v, err := strconv.ParseBool(s)
 	*b = boolValue(v)
-	return fmt.Errorf("Error parse bool in func boolValue#Set: %s", err.Error())
+	if err != nil {
+		return fmt.Errorf("Error parse bool in func boolValue#Set: %s", err.Error())
+	}
+	return err
 }
 
 func (b *boolValue) Get() interface{} { return bool(*b) }
@@ -140,7 +143,10 @@ func newIntValue(val int, p *int) *intValue {
 func (i *intValue) Set(s string) error {
 	v, err := strconv.ParseInt(s, 0, 64)
 	*i = intValue(v)
-	return fmt.Errorf("Error parse int in func intValue#Set: %s", err.Error())
+	if err != nil {
+		return fmt.Errorf("Error parse int in func intValue#Set: %s", err.Error())
+	}
+	return err
 }
 
 func (i *intValue) Get() interface{} { return int(*i) }
@@ -158,7 +164,10 @@ func newInt64Value(val int64, p *int64) *int64Value {
 func (i *int64Value) Set(s string) error {
 	v, err := strconv.ParseInt(s, 0, 64)
 	*i = int64Value(v)
-	return fmt.Errorf("Error parse int in func int64Value#Set: %s", err.Error())
+	if err != nil {
+		return fmt.Errorf("Error parse int in func int64Value#Set: %s", err.Error())
+	}
+	return err
 }
 
 func (i *int64Value) Get() interface{} { return int64(*i) }
@@ -176,7 +185,10 @@ func newUintValue(val uint, p *uint) *uintValue {
 func (i *uintValue) Set(s string) error {
 	v, err := strconv.ParseUint(s, 0, 64)
 	*i = uintValue(v)
-	return fmt.Errorf("Error parse uint in func uintValue#Set: %s", err.Error())
+	if err != nil {
+		return fmt.Errorf("Error parse uint in func uintValue#Set: %s", err.Error())
+	}
+	return err
 }
 
 func (i *uintValue) Get() interface{} { return uint(*i) }
@@ -194,7 +206,10 @@ func newUint64Value(val uint64, p *uint64) *uint64Value {
 func (i *uint64Value) Set(s string) error {
 	v, err := strconv.ParseUint(s, 0, 64)
 	*i = uint64Value(v)
-	return fmt.Errorf("Error parse uint in func uint64Value#Set: %s", err.Error())
+	if err != nil {
+		return fmt.Errorf("Error parse uint in func uint64Value#Set: %s", err.Error())
+	}
+	return err
 }
 
 func (i *uint64Value) Get() interface{} { return uint64(*i) }
@@ -229,7 +244,10 @@ func newFloat64Value(val float64, p *float64) *float64Value {
 func (f *float64Value) Set(s string) error {
 	v, err := strconv.ParseFloat(s, 64)
 	*f = float64Value(v)
-	return fmt.Errorf("Error parse float in func float64Value#Set: %s", err.Error())
+	if err != nil {
+		return fmt.Errorf("Error parse float in func float64Value#Set: %s", err.Error())
+	}
+	return err
 }
 
 func (f *float64Value) Get() interface{} { return float64(*f) }
