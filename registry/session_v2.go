@@ -203,7 +203,7 @@ func (r *Session) GetV2ImageBlobReader(ep *Endpoint, imageName, sumType, sum str
 	lenStr := res.Header.Get("Content-Length")
 	l, err := strconv.ParseInt(lenStr, 10, 64)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("Error parse lenStr as int: %s", err.Error())
 	}
 
 	return res.Body, l, err

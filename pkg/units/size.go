@@ -79,7 +79,7 @@ func parseSize(sizeStr string, uMap unitMap) (int64, error) {
 
 	size, err := strconv.ParseInt(matches[1], 10, 0)
 	if err != nil {
-		return -1, err
+		return -1, fmt.Errorf("Error parse matches[1] as int: %s", err.Error())
 	}
 
 	unitPrefix := strings.ToLower(matches[2])
