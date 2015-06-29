@@ -82,7 +82,8 @@ func NewChain(name, bridge string, table Table) (*Chain, error) {
 	case Nat:
 		preroute := []string{
 			"-m", "addrtype",
-			"--dst-type", "LOCAL"}
+			"--dst-type", "LOCAL",
+			"-j", c.Name}
 		if !Exists(Nat, "PREROUTING", preroute...) {
 			if err := c.Prerouting(Append, preroute...); err != nil {
 				return nil, fmt.Errorf("Failed to inject docker in PREROUTING chain: %s", err)
@@ -91,6 +92,7 @@ func NewChain(name, bridge string, table Table) (*Chain, error) {
 		output := []string{
 			"-m", "addrtype",
 			"--dst-type", "LOCAL",
+			"-j", c.Name,
 			"!", "--dst", "127.0.0.0/8"}
 		if !Exists(Nat, "OUTPUT", output...) {
 			if err := c.Output(Append, output...); err != nil {
@@ -205,7 +207,7 @@ func (c *Chain) Prerouting(action Action, args ...string) error {
 	if len(args) > 0 {
 		a = append(a, args...)
 	}
-	if output, err := Raw(append(a, "-j", c.Name)...); err != nil {
+	if output, err := Raw(append(a)...); err != nil {
 		return err
 	} else if len(output) != 0 {
 		return &ChainError{Chain: "PREROUTING", Output: output}
@@ -219,7 +221,7 @@ func (c *Chain) Output(action Action, args ...string) error {
 	if len(args) > 0 {
 		a = append(a, args...)
 	}
-	if output, err := Raw(append(a, "-j", c.Name)...); err != nil {
+	if output, err := Raw(append(a)...); err != nil {
 		return err
 	} else if len(output) != 0 {
 		return &ChainError{Chain: "OUTPUT", Output: output}
@@ -230,9 +232,9 @@ func (c *Chain) Output(action Action, args ...string) error {
 func (c *Chain) Remove() error {
 	// Ignore errors - This could mean the chains were never set up
 	if c.Table == Nat {
-		c.Prerouting(Delete, "-m", "addrtype", "--dst-type", "LOCAL")
-		c.Output(Delete, "-m", "addrtype", "--dst-type", "LOCAL", "!", "--dst", "127.0.0.0/8")
-		c.Output(Delete, "-m", "addrtype", "--dst-type", "LOCAL") // Created in versions <= 0.1.6
+		c.Prerouting(Delete, "-m", "addrtype", "--dst-type", "LOCAL", "-j", c.Name)
+		c.Output(Delete, "-m", "addrtype", "--dst-type", "LOCAL", "!", "--dst", "127.0.0.0/8", "-j", c.Name)
+		c.Output(Delete, "-m", "addrtype", "--dst-type", "LOCAL", "-j", c.Name) // Created in versions <= 0.1.6
 
 		c.Prerouting(Delete)
 		c.Output(Delete)
