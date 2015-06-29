@@ -126,8 +126,8 @@ func RemoveExistingChain(name string, table Table) error {
 	return c.Remove()
 }
 
-// Add forwarding rule to 'filter' table and corresponding nat rule to 'nat' table
-func (c *Chain) Forward(action Action, ip net.IP, port int, proto, destAddr string, destPort int) error {
+func (c *Chain) ForwardRules(ip net.IP, port int, proto, destAddr string, destPort int) [][]string {
+	var rules [][]string
 	daddr := ip.String()
 	if ip.IsUnspecified() {
 		// iptables interprets "0.0.0.0" as "0.0.0.0/32", whereas we
@@ -135,70 +135,99 @@ func (c *Chain) Forward(action Action, ip net.IP, port int, proto, destAddr stri
 		// value" by both iptables and ip6tables.
 		daddr = "0/0"
 	}
-	if output, err := Raw("-t", string(Nat), string(action), c.Name,
+	args := []string{c.Name, "-t", string(Nat),
 		"-p", proto,
 		"-d", daddr,
 		"--dport", strconv.Itoa(port),
 		"!", "-i", c.Bridge,
 		"-j", "DNAT",
-		"--to-destination", net.JoinHostPort(destAddr, strconv.Itoa(destPort))); err != nil {
-		return err
-	} else if len(output) != 0 {
-		return &ChainError{Chain: "FORWARD", Output: output}
-	}
-
-	if output, err := Raw("-t", string(Filter), string(action), c.Name,
+		"--to-destination", net.JoinHostPort(destAddr, strconv.Itoa(destPort))}
+	rules = append(rules, args)
+	rules = append(rules, []string{c.Name, "-t", string(Filter),
 		"!", "-i", c.Bridge,
 		"-o", c.Bridge,
 		"-p", proto,
 		"-d", destAddr,
 		"--dport", strconv.Itoa(destPort),
-		"-j", "ACCEPT"); err != nil {
-		return err
-	} else if len(output) != 0 {
-		return &ChainError{Chain: "FORWARD", Output: output}
-	}
-
-	if output, err := Raw("-t", string(Nat), string(action), "POSTROUTING",
+		"-j", "ACCEPT"})
+	rules = append(rules, []string{"POSTROUTING", "-t", string(Nat),
 		"-p", proto,
 		"-s", destAddr,
 		"-d", destAddr,
 		"--dport", strconv.Itoa(destPort),
-		"-j", "MASQUERADE"); err != nil {
-		return err
-	} else if len(output) != 0 {
-		return &ChainError{Chain: "FORWARD", Output: output}
-	}
-
-	return nil
+		"-j", "MASQUERADE"})
+	return rules
 }
 
-// Add reciprocal ACCEPT rule for two supplied IP addresses.
-// Traffic is allowed from ip1 to ip2 and vice-versa
-func (c *Chain) Link(action Action, ip1, ip2 net.IP, port int, proto string) error {
-	if output, err := Raw("-t", string(Filter), string(action), c.Name,
+// Add forwarding rule to 'filter' table and corresponding nat rule to 'nat' table
+func (c *Chain) Forward(action Action, ip net.IP, port int, proto, destAddr string, destPort int) error {
+	return c.Multiple(action, c.ForwardRules(ip, port, proto, destAddr, destPort), "FORWARD")
+}
+
+// Cleanly add or delete multiple iptable rules
+func (c *Chain) Multiple(action Action, rules [][]string, chain string) error {
+	if action == Append || action == Insert {
+		// Append or Insert rules
+		for i, rule := range rules {
+			if output, err := Raw(append([]string{string(action)}, rule...)...); err != nil || len(output) != 0 {
+				fmt.Println("fail to create forward here")
+				// Delete previous rules
+				log.Debugf("cleaning previous succeed rules")
+				for index, deleteRule := range rules {
+					if index == i {
+						break
+					}
+					Raw(append([]string{string(Delete)}, deleteRule...)...)
+				}
+				if err != nil {
+					return err
+				}
+				return &ChainError{Chain: chain, Output: output}
+			}
+		}
+		return nil
+	} else if action == Delete {
+		// Delete rules
+		var retErr error
+		for _, rule := range rules {
+			if output, err := Raw(append([]string{string(action)}, rule...)...); err != nil || len(output) != 0 {
+				// Do not return here, we have to try to delete all rules even if one of them fails
+				if err != nil {
+					retErr = err
+				} else {
+					retErr = &ChainError{Chain: chain, Output: output}
+				}
+			}
+		}
+		return retErr
+	} else {
+		return fmt.Errorf("Invalid IPTables action '%s'", string(action))
+	}
+}
+
+func (c *Chain) LinkRules(ip1, ip2 net.IP, port int, proto string) [][]string {
+	var rules [][]string
+	rules = append(rules, []string{c.Name, "-t", string(Filter),
 		"-i", c.Bridge, "-o", c.Bridge,
 		"-p", proto,
 		"-s", ip1.String(),
 		"-d", ip2.String(),
 		"--dport", strconv.Itoa(port),
-		"-j", "ACCEPT"); err != nil {
-		return err
-	} else if len(output) != 0 {
-		return fmt.Errorf("Error iptables forward: %s", output)
-	}
-	if output, err := Raw("-t", string(Filter), string(action), c.Name,
+		"-j", "ACCEPT"})
+	rules = append(rules, []string{c.Name, "-t", string(Filter),
 		"-i", c.Bridge, "-o", c.Bridge,
 		"-p", proto,
 		"-s", ip2.String(),
 		"-d", ip1.String(),
 		"--sport", strconv.Itoa(port),
-		"-j", "ACCEPT"); err != nil {
-		return err
-	} else if len(output) != 0 {
-		return fmt.Errorf("Error iptables forward: %s", output)
-	}
-	return nil
+		"-j", "ACCEPT"})
+	return rules
+}
+
+// Add reciprocal ACCEPT rule for two supplied IP addresses.
+// Traffic is allowed from ip1 to ip2 and vice-versa
+func (c *Chain) Link(action Action, ip1, ip2 net.IP, port int, proto string) error {
+	return c.Multiple(action, c.LinkRules(ip1, ip2, port, proto), "LINK")
 }
 
 // Add linking rule to nat/PREROUTING chain.
@@ -240,7 +269,11 @@ func (c *Chain) Remove() error {
 		c.Output(Delete)
 	}
 	Raw("-t", string(c.Table), "-F", c.Name)
-	Raw("-t", string(c.Table), "-X", c.Name)
+	if output, err := Raw("-t", string(c.Table), "-X", c.Name); err != nil {
+		return err
+	} else if len(output) != 0 {
+		return &ChainError{Chain: c.Name, Output: output}
+	}
 	return nil
 }
 
