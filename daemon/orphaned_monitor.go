@@ -21,6 +21,14 @@ type orphanedContainerMonitor struct {
 
 	// container is the container being monitored
 	container *Container
+
+	// startSignal is a channel that is closes after the container initially starts
+	startSignal chan struct{}
+
+	// stopChan is used to signal to the monitor whenever there is a wait for the
+	// next restart so that the timeIncrement is not honored and the user is not
+	// left waiting for nothing to happen during this time
+	stopChan chan struct{}
 	// lastStartTime is the time which the monitor last exec'd the container's process
 	startTime time.Time
 }
@@ -75,14 +83,14 @@ func loadConf(pth string) (*runconfig.Config, error) {
 
 // Stop signals to the container monitor that it should stop monitoring the container
 // for exits the next time the process dies
-func (m *orphanedContainerMonitor) ExitOnNext() {
+func (m orphanedContainerMonitor) ExitOnNext() {
 	m.mux.Lock()
 	m.mux.Unlock()
 }
 
 // Close closes the container's resources such as networking allocations and
 // unmounts the contatiner's root filesystem
-func (m *orphanedContainerMonitor) Close() error {
+func (m orphanedContainerMonitor) Close() error {
 	// Cleanup networking and mounts
 	m.container.cleanup()
 
@@ -98,7 +106,12 @@ func (m *orphanedContainerMonitor) Close() error {
 	return nil
 }
 
-func (m *orphanedContainerMonitor) Start() error {
+func (m orphanedContainerMonitor) Start() error {
 	log("container started")
 	return nil
+}
+
+
+func (m orphanedContainerMonitor) StartSignal() chan struct{} {
+	return m.startSignal
 }

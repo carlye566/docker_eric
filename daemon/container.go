@@ -81,7 +81,7 @@ type CommonContainer struct {
 	hostConfig *runconfig.HostConfig
 	command    *execdriver.Command
 
-	monitor      *containerMonitor
+	monitor      containerMonitor
 	execCommands *execStore
 	daemon       *Daemon
 	// logDriver for closing
@@ -742,12 +742,12 @@ func (container *Container) startLogging() error {
 }
 
 func (container *Container) waitForStart() error {
-	container.monitor = newContainerMonitor(container, container.hostConfig.RestartPolicy)
+	container.monitor = newOrphanedContainerMonitor(container, container.hostConfig.RestartPolicy)
 
 	// block until we either receive an error from the initial start of the container's
 	// process or until the process is running in the container
 	select {
-	case <-container.monitor.startSignal:
+	case <-container.monitor.StartSignal():
 	case err := <-promise.Go(container.monitor.Start):
 		return err
 	}
