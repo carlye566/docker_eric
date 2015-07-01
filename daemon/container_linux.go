@@ -307,7 +307,7 @@ func populateCommand(c *Container, env []string) error {
 		CgroupParent:       c.hostConfig.CgroupParent,
 	}
 
-	return nil
+	return c.WriteCommand()
 }
 
 func mergeDevices(defaultDevices, userDevices []*configs.Device) []*configs.Device {

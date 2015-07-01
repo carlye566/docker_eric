@@ -589,6 +589,10 @@ func (container *Container) jsonPath() (string, error) {
 	return container.GetRootResourcePath("config.json")
 }
 
+func (container *Container) commandPath() (string, error) {
+	return container.GetRootResourcePath("command.json")
+}
+
 // This method must be exported to be used from the lxc template
 // This directory is only usable when the container is running
 func (container *Container) RootfsPath() string {
@@ -1173,4 +1177,42 @@ func (container *Container) copyImagePathContent(v volume.Volume, destination st
 	}
 
 	return v.Unmount()
+}
+
+func (container *Container) WriteCommand() error {
+	data, err := json.Marshal(container.command)
+	if err != nil {
+		return err
+	}
+
+	pth, err := container.commandPath()
+	if err != nil {
+		return err
+	}
+
+	return ioutil.WriteFile(pth, data, 0666)
+}
+
+func (container *Container) readCommand() error {
+	container.command = &execdriver.Command{}
+	// If the hostconfig file does not exist, do not read it.
+	// (We still have to initialize container.hostConfig,
+	// but that's OK, since we just did that above.)
+	pth, err := container.commandPath()
+	if err != nil {
+		return err
+	}
+
+	_, err = os.Stat(pth)
+	if os.IsNotExist(err) {
+		return nil
+	}
+
+	f, err := os.Open(pth)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	return json.NewDecoder(f).Decode(&container.command)
 }

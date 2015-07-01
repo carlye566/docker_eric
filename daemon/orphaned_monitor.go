@@ -1,19 +1,21 @@
 package daemon
+
 import (
 	"time"
 	"sync"
 	"os"
 	"fmt"
 	"path/filepath"
-	"encoding/json"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/pkg/reexec"
 	"github.com/docker/docker/runconfig"
+	"os/exec"
+	"syscall"
 )
 
 const (
-	container_conf_file_name  = "config.json"
+	container_monitor = "container_monitor"
 )
 
 type orphanedContainerMonitor struct {
@@ -34,21 +36,40 @@ type orphanedContainerMonitor struct {
 }
 
 func init() {
-	log("init container-monitor")
-	reexec.Register("container-monitor", reexecMonitor)
+	log("init %s", container_monitor)
+	reexec.Register(container_monitor, reexecMonitor)
 }
+
+var monitor orphanedContainerMonitor
 
 func reexecMonitor() {
 	var (
 		containerId = os.Args[1]
-		confBaseDir = os.Args[2]
+		confDir = os.Args[2]
 	)
-	confDir := filepath.Join(confBaseDir, containerId)
-	if config, err := loadConf(filepath.Join(confDir, container_conf_file_name)); err != nil {
+	container := &Container{
+		CommonContainer: CommonContainer{
+			root: confDir,
+		},
+	}
+	if err := container.FromDisk(); err != nil {
 		log("Error load config %v", err)
 	} else {
-		log("success to load %s config, %v", containerId, config)
+		log("success to load %s config, %v", containerId, container.Config)
 	}
+
+	if err := container.readHostConfig(); err != nil {
+		log("Error load hostconfig %v", err)
+	} else {
+		log("success to load %s hostconfig, %v", containerId, container.hostConfig)
+	}
+
+	if err := container.readCommand(); err != nil {
+		log("Error load command %v", err)
+	} else {
+		log("success to load %s command, %v", containerId, container.command)
+	}
+	monitor = newOrphanedContainerMonitor(container, container.hostConfig.RestartPolicy)
 }
 
 func log(message string, args ...interface{}) {
@@ -59,32 +80,16 @@ func log(message string, args ...interface{}) {
 func newOrphanedContainerMonitor(container *Container, policy runconfig.RestartPolicy) *orphanedContainerMonitor {
 	return &orphanedContainerMonitor{
 		container: container,
+		stopChan:      make(chan struct{}),
+		startSignal:   make(chan struct{}),
 	}
 }
-
-func loadConf(pth string) (*runconfig.Config, error) {
-	f, err := os.Open(pth)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	var (
-		out = &runconfig.Config{}
-		dec = json.NewDecoder(f)
-	)
-
-	if err := dec.Decode(out); err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 
 // Stop signals to the container monitor that it should stop monitoring the container
 // for exits the next time the process dies
 func (m orphanedContainerMonitor) ExitOnNext() {
 	m.mux.Lock()
+	close(m.stopChan)
 	m.mux.Unlock()
 }
 
@@ -107,11 +112,47 @@ func (m orphanedContainerMonitor) Close() error {
 }
 
 func (m orphanedContainerMonitor) Start() error {
+	exec := newMonitorCommand(m.container.ID, m.container.root)
+	exec.Start()
+	m.callback(10001)
+	exec.Wait()
 	log("container started")
 	return nil
 }
 
+// callback ensures that the container's state is properly updated after we
+// received ack from the execution drivers
+func (m orphanedContainerMonitor) callback(pid int) {
+	m.container.setRunning(pid)
+
+	// signal that the process has started
+	// close channel only if not closed
+	select {
+	case <-m.startSignal:
+	default:
+		close(m.startSignal)
+	}
+
+	if err := m.container.ToDisk(); err != nil {
+		logrus.Debugf("%s", err)
+	}
+}
 
 func (m orphanedContainerMonitor) StartSignal() chan struct{} {
 	return m.startSignal
+}
+
+func newMonitorCommand(containerId, bashDir string) *exec.Cmd {
+	args := []string{
+		container_monitor,
+		containerId,
+		bashDir,
+	}
+	return &exec.Cmd{
+		Path: reexec.Self(),
+		Args: args,
+		SysProcAttr: &syscall.SysProcAttr{
+			Pdeathsig: syscall.SIGTERM, // send a sigterm to the proxy if the daemon process dies
+		},
+	}
 }
