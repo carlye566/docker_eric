@@ -1261,9 +1261,9 @@ func ping(eng *engine.Engine, version version.Version, w http.ResponseWriter, r 
 func makeHttpHandler(eng *engine.Engine, logging bool, localMethod string, localRoute string, handlerFunc HttpApiFunc, corsHeaders string, dockerVersion version.Version) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// log the request
-		log.Debugf("Calling %s %s", localMethod, localRoute)
+//		log.Debugf("Calling %s %s", localMethod, localRoute)
 
-		if logging {
+		if logging && localRoute != "/containers/json" && localRoute != "/containers/{name:.*}/json" {
 			log.Infof("%s %s", r.Method, r.RequestURI)
 		}
 

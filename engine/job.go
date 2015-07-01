@@ -75,7 +75,7 @@ func (job *Job) Run() error {
 		return fmt.Errorf("%s: job has already completed", job.Name)
 	}
 	// Log beginning and end of the job
-	if job.Eng.Logging {
+	if job.Eng.Logging && job.Name != "containers" && job.Name != "container_inspect" {
 		log.Infof("+job %s", job.CallString())
 		defer func() {
 			log.Infof("-job %s%s", job.CallString(), job.StatusString())
