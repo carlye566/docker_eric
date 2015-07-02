@@ -5,9 +5,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"github.com/docker/docker/vendor/src/github.com/Sirupsen/logrus"
 )
 
 var registeredInitializers = make(map[string]func())
+var fakeSelf string
 
 // Register adds an initialization func under the specified name
 func Register(name string, initializer func()) {
@@ -16,6 +18,11 @@ func Register(name string, initializer func()) {
 	}
 
 	registeredInitializers[name] = initializer
+}
+
+func RegisterSelf(name string, initializer func(), self string) {
+	Register(name, initializer)
+	fakeSelf = self
 }
 
 // Init is called as the first part of the exec process and returns true if an
@@ -35,14 +42,23 @@ func Self() string {
 	name := os.Args[0]
 	if filepath.Base(name) == name {
 		if lp, err := exec.LookPath(name); err == nil {
+			logrus.Infof("Self lp %s, name %s", lp, name)
 			return lp
 		}
 	}
 	// handle conversion of relative paths to absolute
 	if absName, err := filepath.Abs(name); err == nil {
-		return absName
+		if _, exist := os.Stat(absName); exist == nil {
+			logrus.Infof("Self absname %s", absName)
+			return absName
+		}
 	}
 	// if we coudn't get absolute name, return original
 	// (NOTE: Go only errors on Abs() if os.Getwd fails)
+	if fakeSelf != "" {
+		logrus.Infof("Self fakeSelf %s", fakeSelf)
+		return fakeSelf
+	}
+	logrus.Infof("Self name %s", name)
 	return name
 }

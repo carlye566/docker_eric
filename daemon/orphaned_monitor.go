@@ -4,18 +4,25 @@ import (
 	"time"
 	"sync"
 	"os"
+	"os/exec"
 	"fmt"
-	"path/filepath"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/pkg/reexec"
 	"github.com/docker/docker/runconfig"
-	"os/exec"
-	"syscall"
+	"github.com/docker/docker/daemon/execdriver/native"
+	"path/filepath"
+	"github.com/docker/docker/autogen/dockerversion"
+	"github.com/docker/docker/pkg/broadcastwriter"
+	"io/ioutil"
+	"github.com/docker/docker/pkg/ioutils"
+	"github.com/docker/docker/daemon/execdriver"
 )
 
 const (
 	container_monitor = "container_monitor"
+	root = "/var/run/docker"
+	fakeSelf = "/usr/bin/docker"
 )
 
 type orphanedContainerMonitor struct {
@@ -36,45 +43,7 @@ type orphanedContainerMonitor struct {
 }
 
 func init() {
-	log("init %s", container_monitor)
-	reexec.Register(container_monitor, reexecMonitor)
-}
-
-var monitor orphanedContainerMonitor
-
-func reexecMonitor() {
-	var (
-		containerId = os.Args[1]
-		confDir = os.Args[2]
-	)
-	container := &Container{
-		CommonContainer: CommonContainer{
-			root: confDir,
-		},
-	}
-	if err := container.FromDisk(); err != nil {
-		log("Error load config %v", err)
-	} else {
-		log("success to load %s config, %v", containerId, container.Config)
-	}
-
-	if err := container.readHostConfig(); err != nil {
-		log("Error load hostconfig %v", err)
-	} else {
-		log("success to load %s hostconfig, %v", containerId, container.hostConfig)
-	}
-
-	if err := container.readCommand(); err != nil {
-		log("Error load command %v", err)
-	} else {
-		log("success to load %s command, %v", containerId, container.command)
-	}
-	monitor = newOrphanedContainerMonitor(container, container.hostConfig.RestartPolicy)
-}
-
-func log(message string, args ...interface{}) {
-	fmt.Printf(message+"\n", args...)
-	logrus.Printf(message+"\n", args...)
+	reexec.RegisterSelf(container_monitor, reexecMonitor, fakeSelf)
 }
 
 func newOrphanedContainerMonitor(container *Container, policy runconfig.RestartPolicy) *orphanedContainerMonitor {
@@ -113,16 +82,24 @@ func (m orphanedContainerMonitor) Close() error {
 
 func (m orphanedContainerMonitor) Start() error {
 	exec := newMonitorCommand(m.container.ID, m.container.root)
-	exec.Start()
-	m.callback(10001)
-	exec.Wait()
-	log("container started")
+	err := exec.Start()
+	if err != nil {
+		logrus.Errorf("%s", err)
+		return err
+	}
+	m.callback(nil, 10001)
+	err = exec.Wait()
+	if err != nil {
+		logrus.Errorf("%s", err)
+		return err
+	}
+	logrus.Infof("container started")
 	return nil
 }
 
 // callback ensures that the container's state is properly updated after we
 // received ack from the execution drivers
-func (m orphanedContainerMonitor) callback(pid int) {
+func (m orphanedContainerMonitor) callback(processConfig *execdriver.ProcessConfig, pid int) {
 	m.container.setRunning(pid)
 
 	// signal that the process has started
@@ -151,8 +128,77 @@ func newMonitorCommand(containerId, bashDir string) *exec.Cmd {
 	return &exec.Cmd{
 		Path: reexec.Self(),
 		Args: args,
-		SysProcAttr: &syscall.SysProcAttr{
-			Pdeathsig: syscall.SIGTERM, // send a sigterm to the proxy if the daemon process dies
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
+}
+
+var monitor *orphanedContainerMonitor
+
+func reexecMonitor() {
+	var (
+		containerId = os.Args[1]
+		confDir = os.Args[2]
+	)
+	container := &Container{
+		CommonContainer: CommonContainer{
+			ID:    containerId,
+			State: NewState(),
+			root: confDir,
+			StreamConfig: StreamConfig{
+				stdout: broadcastwriter.New(),
+				stderr: broadcastwriter.New(),
+				stdinPipe: ioutils.NopWriteCloser(ioutil.Discard),
+			},
 		},
 	}
+	if err := container.FromDisk(); err != nil {
+		log("Error load config %v", err)
+	} else {
+		log("success to load %s config, %v", containerId, container.Config)
+	}
+
+	if err := container.readHostConfig(); err != nil {
+		log("Error load hostconfig %v", err)
+	} else {
+		log("success to load %s hostconfig, %v", containerId, container.hostConfig)
+	}
+
+	if err := container.readCommand(); err != nil {
+		log("Error load command %v", err)
+	} else {
+		log("success to load %s command, %v", containerId, container.command)
+	}
+	monitor = newOrphanedContainerMonitor(container, container.hostConfig.RestartPolicy)
+	sysInitPath := filepath.Join(root, "init", fmt.Sprintf("dockerinit-%s", dockerversion.VERSION))
+	execRoot := filepath.Join(root, "execdriver", "native")
+	driver, err := native.NewDriver(execRoot, sysInitPath, []string{})
+	if err != nil {
+		log("new native driver err %v", err)
+	} else {
+		log("new native driver success")
+	}
+	err = monitor.startContainer(driver)
+	if err != nil {
+		log("start container err %v", err)
+	} else {
+		log("start container success %v", err)
+	}
+	time.Sleep(30 *time.Second)
+}
+
+func log(message string, args ...interface{}) {
+	logrus.Printf("[monitor] "+message, args...)
+}
+
+func (m orphanedContainerMonitor) startContainer(d execdriver.Driver) error {
+	pipes := execdriver.NewPipes(m.container.stdin, m.container.stdout, m.container.stderr, m.container.Config.OpenStdin)
+	m.startTime = time.Now()
+	log("orphanedContainerMonitor before run+")
+	if _, err := d.Run(m.container.command, pipes, m.callback); err != nil {
+		log("orphanedContainerMonitor after run err %v-", err)
+		return err
+	}
+	log("orphanedContainerMonitor after run-")
+	return nil
 }

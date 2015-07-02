@@ -135,6 +135,7 @@ func (m embedContainerMonitor) Start() error {
 
 		m.lastStartTime = time.Now()
 
+		logrus.Infof("monitor before run")
 		if exitStatus, err = m.container.daemon.Run(m.container, pipes, m.callback); err != nil {
 			// if we receive an internal error from the initial start of a container then lets
 			// return it instead of entering the restart loop
@@ -147,6 +148,7 @@ func (m embedContainerMonitor) Start() error {
 
 			logrus.Errorf("Error running container: %s", err)
 		}
+		logrus.Infof("monitor after run")
 
 		// here container.Lock is already lost
 		afterRun = true

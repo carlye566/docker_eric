@@ -9,6 +9,7 @@ import (
 
 	"github.com/docker/docker/pkg/reexec"
 	"github.com/docker/libcontainer"
+	"github.com/docker/docker/vendor/src/github.com/Sirupsen/logrus"
 )
 
 func init() {
@@ -28,6 +29,7 @@ func fatal(err error) {
 func initializer() {
 	runtime.GOMAXPROCS(1)
 	runtime.LockOSThread()
+	logrus.Infof("I'm in container")
 	factory, err := libcontainer.New("")
 	if err != nil {
 		fatal(err)
