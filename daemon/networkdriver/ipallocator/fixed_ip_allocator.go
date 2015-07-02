@@ -45,7 +45,7 @@ func UnRegisterFixedIP(ips []net.IP) error {
 	for _, ip := range ips {
 		key := ip.String()
 		if cid, exists := fixedIP[key]; exists {
-			if cid == FakeContainerId {
+			if cid != FakeContainerId {
 				return errors.New("Trying to unregister " + ip.String() + " which is in use now")
 			}
 		} else {
