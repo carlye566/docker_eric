@@ -10,7 +10,6 @@ import (
 	"github.com/docker/libcontainer/configs"
 	"github.com/docker/libcontainer/label"
 	"github.com/docker/libcontainer/system"
-	"github.com/docker/docker/vendor/src/github.com/Sirupsen/logrus"
 )
 
 type linuxStandardInit struct {
@@ -19,7 +18,6 @@ type linuxStandardInit struct {
 }
 
 func (l *linuxStandardInit) Init() error {
-	logrus.Infof("[container] linuxStandardInit")
 	// join any namespaces via a path to the namespace fd if provided
 	if err := joinExistingNamespaces(l.config.Config.Namespaces); err != nil {
 		return err
@@ -104,8 +102,5 @@ func (l *linuxStandardInit) Init() error {
 	if err := finalizeSeccomp(l.config); err != nil {
 		return err
 	}
-	logrus.Infof("[container] linuxStandardInit config %v", l.config)
-	logrus.Infof("[container] linuxStandardInit config.Args %v", l.config.Args)
-	logrus.Infof("[container] linuxStandardInit os.Environ() %v", os.Environ())
 	return system.Execv(l.config.Args[0], l.config.Args[0:], os.Environ())
 }
