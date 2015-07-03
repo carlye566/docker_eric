@@ -746,7 +746,7 @@ func (container *Container) startLogging() error {
 }
 
 func (container *Container) waitForStart() error {
-	container.monitor = newEmbedContainerMonitor(container, container.hostConfig.RestartPolicy)
+	container.monitor = newOrphanedContainerMonitor(container, container.hostConfig.RestartPolicy)
 
 	// block until we either receive an error from the initial start of the container's
 	// process or until the process is running in the container

@@ -154,35 +154,28 @@ func reexecMonitor() {
 	}
 	if err := container.FromDisk(); err != nil {
 		log("Error load config %v", err)
-	} else {
-		log("success to load %s config, %v", containerId, container.Config)
 	}
 
 	if err := container.readHostConfig(); err != nil {
 		log("Error load hostconfig %v", err)
-	} else {
-		log("success to load %s hostconfig, %v", containerId, container.hostConfig)
 	}
 
 	if err := container.readCommand(); err != nil {
 		log("Error load command %v", err)
-	} else {
-		log("success to load %s command, %v", containerId, container.command)
 	}
+	//TODO env in ProcessConfig.execCmd should be changed to ProcessConfig.env
+	env := container.createDaemonEnvironment([]string{})
+	container.command.ProcessConfig.Env = env
 	monitor = newOrphanedContainerMonitor(container, container.hostConfig.RestartPolicy)
 	sysInitPath := filepath.Join(root, "init", fmt.Sprintf("dockerinit-%s", dockerversion.VERSION))
 	execRoot := filepath.Join(root, "execdriver", "native")
 	driver, err := native.NewDriver(execRoot, sysInitPath, []string{})
 	if err != nil {
 		log("new native driver err %v", err)
-	} else {
-		log("new native driver success")
 	}
 	err = monitor.startContainer(driver)
 	if err != nil {
 		log("start container err %v", err)
-	} else {
-		log("start container success %v", err)
 	}
 	time.Sleep(30 *time.Second)
 }
