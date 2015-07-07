@@ -1563,6 +1563,8 @@ func createRouter(s *Server) *mux.Router {
 			"/exec/{name:.*}/start":         s.postContainerExecStart,
 			"/exec/{name:.*}/resize":        s.postContainerExecResize,
 			"/containers/{name:.*}/rename":  s.postContainerRename,
+			"/monitor/{id:.*}/start":        s.postContainerMonitorStart,
+			"/monitor/{id:.*}/stop":         s.postContainerMonitorStop,
 		},
 		"DELETE": {
 			"/containers/{name:.*}": s.deleteContainers,
@@ -1602,4 +1604,58 @@ func createRouter(s *Server) *mux.Router {
 	}
 
 	return r
+}
+
+func (s *Server) postContainerMonitorStart(version version.Version, w http.ResponseWriter, r *http.Request, vars map[string]string) error {
+	if vars == nil {
+		return fmt.Errorf("Missing parameter")
+	}
+
+	var status daemon.StartStatus
+	if r.Body != nil && (r.ContentLength > 0 || r.ContentLength == -1) {
+		if err := checkForJson(r); err != nil {
+			return err
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&status); err != nil {
+			return err
+		}
+	}
+
+	if err := s.daemon.ContainerMonitorStart(vars["id"], status); err != nil {
+		if err.Error() == "Container already started" {
+			w.WriteHeader(http.StatusNotModified)
+			return nil
+		}
+		return err
+	}
+	w.WriteHeader(http.StatusNoContent)
+	return nil
+}
+
+func (s *Server) postContainerMonitorStop(version version.Version, w http.ResponseWriter, r *http.Request, vars map[string]string) error {
+	if vars == nil {
+		return fmt.Errorf("Missing parameter")
+	}
+
+	var status daemon.StopStatus
+	if r.Body != nil && (r.ContentLength > 0 || r.ContentLength == -1) {
+		if err := checkForJson(r); err != nil {
+			return err
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&status); err != nil {
+			return err
+		}
+	}
+
+	if err := s.daemon.ContainerMonitorStop(vars["id"], status); err != nil {
+		if err.Error() == "Container already stoped" {
+			w.WriteHeader(http.StatusNotModified)
+			return nil
+		}
+		return err
+	}
+	w.WriteHeader(http.StatusNoContent)
+	return nil
 }

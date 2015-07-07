@@ -4,8 +4,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Sirupsen/logrus"
-	"github.com/docker/docker/daemon/execdriver"
 	"github.com/docker/docker/runconfig"
 )
 
@@ -34,24 +32,6 @@ type commonMonitor struct {
 	stopChan chan struct{}
 	// lastStartTime is the time which the monitor last exec'd the container's process
 	startTime time.Time
-}
-
-// callback ensures that the container's state is properly updated after we
-// received ack from the execution drivers
-func (m commonMonitor) callback(processConfig *execdriver.ProcessConfig, pid int) {
-	m.container.setRunning(pid)
-
-	// signal that the process has started
-	// close channel only if not closed
-	select {
-	case <-m.startSignal:
-	default:
-		close(m.startSignal)
-	}
-
-	if err := m.container.ToDisk(); err != nil {
-		logrus.Debugf("%s", err)
-	}
 }
 
 func (m commonMonitor) StartSignal() chan struct{} {

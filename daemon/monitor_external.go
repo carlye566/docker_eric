@@ -7,10 +7,14 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/pkg/reexec"
 	"github.com/docker/docker/runconfig"
+	"strings"
+	"github.com/docker/docker/daemon/execdriver"
+	"fmt"
 )
 
 type externalMonitor struct {
 	commonMonitor
+	startErr error
 }
 
 func newExternalMonitor(container *Container, policy runconfig.RestartPolicy) *externalMonitor {
@@ -57,21 +61,27 @@ func (m externalMonitor) Start() error {
 		logrus.Errorf("%s", err)
 		return err
 	}
-	m.callback(nil, 10001)
-	err = exec.Wait()
+	if m.startErr != nil {
+		return m.startErr
+	}
+	err = exec.Wait()  //to do wait for stop
 	if err != nil {
 		logrus.Errorf("%s", err)
 		return err
 	}
-	logrus.Infof("container started")
 	return nil
 }
 
-func newMonitorCommand(containerId, bashDir string) *exec.Cmd {
+// callback ensures that the container's state is properly updated after we
+// received ack from the execution drivers
+func (m externalMonitor) callback(processConfig *execdriver.ProcessConfig, pid int) {
+}
+
+func newMonitorCommand(containerId, containerRoot string) *exec.Cmd {
 	args := []string{
 		docker_monitor,
 		containerId,
-		bashDir,
+		containerRoot[0:strings.LastIndex(containerRoot, "/")], // /var/lib/docker/containers
 	}
 	return &exec.Cmd{
 		Path: reexec.Self(),
@@ -79,4 +89,43 @@ func newMonitorCommand(containerId, bashDir string) *exec.Cmd {
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
+}
+
+func (daemon *Daemon) ContainerMonitorStart(id string, status StartStatus) error {
+	logrus.Infof("container monitor start %v", status)
+	container, err := daemon.Get(id)
+	if err != nil {
+		return err
+	}
+
+	if container.Paused {
+		return fmt.Errorf("Cannot start a paused container, try unpause instead.")
+	}
+
+	if container.Running {
+		return fmt.Errorf("Container already started")
+	}
+	startSignal := container.monitor.StartSignal()
+	if status.Err != "" {
+		//TODO set container status
+		externalMonitor := container.monitor.(externalMonitor)
+		externalMonitor.startErr = fmt.Errorf(status.Err)
+	} else {
+		container.setRunning(status.Pid)
+	}
+	close(startSignal)
+	return nil
+}
+
+func (daemon *Daemon) ContainerMonitorStop(id string, status StopStatus) error {
+	container, err := daemon.Get(id)
+	if err != nil {
+		return err
+	}
+
+	if !container.Running {
+		return fmt.Errorf("Container already stoped")
+	}
+	container.setStopped(&status.ExitStatus)
+	return nil
 }
