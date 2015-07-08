@@ -269,11 +269,7 @@ func (c *Chain) Remove() error {
 		c.Output(Delete)
 	}
 	Raw("-t", string(c.Table), "-F", c.Name)
-	if output, err := Raw("-t", string(c.Table), "-X", c.Name); err != nil {
-		return err
-	} else if len(output) != 0 {
-		return &ChainError{Chain: c.Name, Output: output}
-	}
+	Raw("-t", string(c.Table), "-X", c.Name)
 	return nil
 }
 
