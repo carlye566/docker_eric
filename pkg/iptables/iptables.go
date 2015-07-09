@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"os/exec"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -294,14 +293,7 @@ func Exists(table Table, chain string, rule ...string) bool {
 	rule_string := strings.Join(rule, " ")
 	existingRules, _ := exec.Command("iptables", "-t", string(table), "-S", chain).Output()
 
-	// regex to replace ips in rule
-	// because MASQUERADE rule will not be exactly what was passed
-	re := regexp.MustCompile(`[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\/[0-9]{1,2}`)
-
-	return strings.Contains(
-		re.ReplaceAllString(string(existingRules), "?"),
-		re.ReplaceAllString(rule_string, "?"),
-	)
+	return strings.Contains(string(existingRules), rule_string)
 }
 
 // Call 'iptables' system command, passing supplied arguments
