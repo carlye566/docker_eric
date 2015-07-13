@@ -236,7 +236,7 @@ func InitDriver(job *engine.Job) engine.Status {
 
 	// Configure iptables for link support
 	if enableIPTables {
-		if err := setupIPTables(addrv4, icc, ipMasq); err != nil {
+		if err := setupIPTables(&net.IPNet{IP:networkv4.IP.Mask(networkv4.Mask), Mask: networkv4.Mask}, icc, ipMasq); err != nil {
 			return job.Error(err)
 		}
 	}
@@ -340,7 +340,11 @@ func InitIPMode(job *engine.Job) engine.Status {
 		//host ip is used for snat and set host ip env
 		if enableIPTables && job.EnvExists("EnableIpMasq") && job.GetenvBool("EnableIpMasq") {
 			//setup snat rule
-			snat := []string{"-s", bridgeIPv4Network.String(), "-d", bridgeIPv4Network.String(), "-o", bridgeIface, "-j", "SNAT", "--to-source", HostIP}
+			_, bip, err := net.ParseCIDR(bridgeIPv4Network.String())
+			if err != nil {
+				return job.Error(err)
+			}
+			snat := []string{"-s", bip.String(), "-d", bip.String(), "-o", bridgeIface, "-j", "SNAT", "--to-source", HostIP}
 			if !iptables.Exists(iptables.Nat, "POSTROUTING", snat...) {
 				if output, err := iptables.Raw(append([]string{
 					"-t", string(iptables.Nat), "-I", "POSTROUTING"}, snat...)...); err != nil {
