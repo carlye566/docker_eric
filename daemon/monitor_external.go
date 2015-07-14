@@ -31,9 +31,6 @@ func newExternalMonitor(container *Container, policy runconfig.RestartPolicy) *e
 // Stop signals to the container monitor that it should stop monitoring the container
 // for exits the next time the process dies
 func (m externalMonitor) ExitOnNext() {
-	m.mux.Lock()
-	close(m.stopChan)
-	m.mux.Unlock()
 }
 
 // Close closes the container's resources such as networking allocations and

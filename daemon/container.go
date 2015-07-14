@@ -28,9 +28,11 @@ import (
 	"github.com/docker/docker/pkg/jsonlog"
 	"github.com/docker/docker/pkg/mount"
 	"github.com/docker/docker/pkg/promise"
+	"github.com/docker/docker/pkg/stringid"
 	"github.com/docker/docker/pkg/symlink"
 	"github.com/docker/docker/runconfig"
 	"github.com/docker/docker/volume"
+	"reflect"
 )
 
 var (
@@ -450,29 +452,38 @@ func (container *Container) Kill() error {
 	}
 
 	// 1. Send SIGKILL
-	if err := container.killPossiblyDeadProcess(9); err != nil {
-		// While normally we might "return err" here we're not going to
-		// because if we can't stop the container by this point then
-		// its probably because its already stopped. Meaning, between
-		// the time of the IsRunning() call above and now it stopped.
-		// Also, since the err return will be exec driver specific we can't
-		// look for any particular (common) error that would indicate
-		// that the process is already dead vs something else going wrong.
-		// So, instead we'll give it up to 2 more seconds to complete and if
-		// by that time the container is still running, then the error
-		// we got is probably valid and so we return it to the caller.
+	if reflect.TypeOf(container.monitor).String() == "*daemon.builtinMonitor" {
+		if err := container.killPossiblyDeadProcess(9); err != nil {
+			// While normally we might "return err" here we're not going to
+			// because if we can't stop the container by this point then
+			// its probably because its already stopped. Meaning, between
+			// the time of the IsRunning() call above and now it stopped.
+			// Also, since the err return will be exec driver specific we can't
+			// look for any particular (common) error that would indicate
+			// that the process is already dead vs something else going wrong.
+			// So, instead we'll give it up to 2 more seconds to complete and if
+			// by that time the container is still running, then the error
+			// we got is probably valid and so we return it to the caller.
 
-		if container.IsRunning() {
-			container.WaitStop(2 * time.Second)
 			if container.IsRunning() {
-				return err
+				container.WaitStop(2 * time.Second)
+				if container.IsRunning() {
+					return err
+				}
 			}
+		}
+	} else {
+		if err := killProcessDirectly(container); err != nil {
+			return err
 		}
 	}
 
 	// 2. Wait for the process to die, in last resort, try to kill the process directly
-	if err := killProcessDirectly(container); err != nil {
-		return err
+	if _, err := container.WaitStop(10 * time.Second); err != nil {
+		logrus.Infof("Container %s failed to exit within 10 seconds of kill - trying direct SIGKILL", stringid.TruncateID(container.ID))
+		if err := killProcessDirectly(container); err != nil {
+			return err
+		}
 	}
 
 	container.WaitStop(-1 * time.Second)
@@ -485,20 +496,37 @@ func (container *Container) Stop(seconds int) error {
 	}
 
 	// 1. Send a SIGTERM
-	if err := container.killPossiblyDeadProcess(15); err != nil {
-		logrus.Infof("Failed to send SIGTERM to the process, force killing")
-		if err := container.killPossiblyDeadProcess(9); err != nil {
-			return err
+	if reflect.TypeOf(container.monitor).String() == "*daemon.builtinMonitor" {
+		if err := container.killPossiblyDeadProcess(15); err != nil {
+			logrus.Infof("Failed to send SIGTERM to the process, force killing")
+			if err := container.killPossiblyDeadProcess(9); err != nil {
+				return err
+			}
+		}
+	} else {
+		if err := signalProcessDirectly(container, 15); err != nil {
+			logrus.Infof("Failed to send SIGTERM to the process, force killing")
+			if err := signalProcessDirectly(container, 9); err != nil {
+				return err
+			}
 		}
 	}
+
 
 	// 2. Wait for the process to exit on its own
 	if _, err := container.WaitStop(time.Duration(seconds) * time.Second); err != nil {
 		logrus.Infof("Container %v failed to exit within %d seconds of SIGTERM - using the force", container.ID, seconds)
 		// 3. If it doesn't, then send SIGKILL
-		if err := container.Kill(); err != nil {
-			container.WaitStop(-1 * time.Second)
-			return err
+		if reflect.TypeOf(container.monitor).String() == "*daemon.builtinMonitor" {
+			if err := container.Kill(); err != nil {
+				container.WaitStop(-1 * time.Second)
+				return err
+			}
+		} else {
+			if err := signalProcessDirectly(container, 9); err != nil {
+				container.WaitStop(-1 * time.Second)
+				return err
+			}
 		}
 	}
 

@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/daemon/execdriver"
@@ -22,7 +21,6 @@ import (
 	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/pkg/directory"
 	"github.com/docker/docker/pkg/ioutils"
-	"github.com/docker/docker/pkg/stringid"
 	"github.com/docker/docker/pkg/ulimit"
 	"github.com/docker/docker/runconfig"
 	"github.com/docker/docker/utils"
@@ -46,16 +44,17 @@ type Container struct {
 }
 
 func killProcessDirectly(container *Container) error {
-	if _, err := container.WaitStop(10 * time.Second); err != nil {
-		// Ensure that we don't kill ourselves
-		if pid := container.GetPid(); pid != 0 {
-			logrus.Infof("Container %s failed to exit within 10 seconds of kill - trying direct SIGKILL", stringid.TruncateID(container.ID))
-			if err := syscall.Kill(pid, 9); err != nil {
-				if err != syscall.ESRCH {
-					return err
-				}
-				logrus.Debugf("Cannot kill process (pid=%d) with signal 9: no such process.", pid)
+	return signalProcessDirectly(container, 9)
+}
+
+func signalProcessDirectly(container *Container, sig int) error {
+	// Ensure that we don't kill ourselves
+	if pid := container.GetPid(); pid != 0 {
+		if err := syscall.Kill(pid, syscall.Signal(sig)); err != nil {
+			if err != syscall.ESRCH {
+				return err
 			}
+			logrus.Debugf("Cannot signal process (pid=%d) with signal %d: no such process.", pid, sig)
 		}
 	}
 	return nil
