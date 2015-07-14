@@ -530,6 +530,7 @@ func (container *Container) Resize(h, w int) error {
 	if !container.IsRunning() {
 		return fmt.Errorf("Cannot resize container %s, container is not running", container.ID)
 	}
+	//TODO terminal is nil
 	if err := container.command.ProcessConfig.Terminal.Resize(h, w); err != nil {
 		return err
 	}

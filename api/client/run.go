@@ -198,6 +198,8 @@ func (cli *DockerCli) CmdRun(args ...string) error {
 			fmt.Fprintf(cli.err, "Error monitoring TTY size: %s\n", err)
 		}
 	}
+	//TODO fix attach mode
+	logrus.Infof("before errch")
 
 	if errCh != nil {
 		if err := <-errCh; err != nil {
@@ -205,6 +207,7 @@ func (cli *DockerCli) CmdRun(args ...string) error {
 			return err
 		}
 	}
+	logrus.Infof("end errch")
 
 	// Detached mode: wait for the id to be displayed and return.
 	if !config.AttachStdout && !config.AttachStderr {
