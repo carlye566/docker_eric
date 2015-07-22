@@ -105,21 +105,21 @@ RUN cd /usr/local/go/src \
 #RUN go get golang.org/x/tools/cmd/cover
 
 # TODO replace FPM with some very minimal debhelper stuff
-RUN gem install --no-rdoc --no-ri fpm --version 1.3.2
+#RUN gem install --no-rdoc --no-ri fpm --version 1.3.2
 
 # Install registry
-ENV REGISTRY_COMMIT d957768537c5af40e4f4cd96871f7b2bde9e2923
-RUN set -x \
-	&& git clone https://github.com/docker/distribution.git /go/src/github.com/docker/distribution \
-	&& (cd /go/src/github.com/docker/distribution && git checkout -q $REGISTRY_COMMIT) \
-	&& GOPATH=/go/src/github.com/docker/distribution/Godeps/_workspace:/go \
-		go build -o /go/bin/registry-v2 github.com/docker/distribution/cmd/registry
+#ENV REGISTRY_COMMIT d957768537c5af40e4f4cd96871f7b2bde9e2923
+#RUN set -x \
+#	&& git clone https://github.com/docker/distribution.git /go/src/github.com/docker/distribution \
+#	&& (cd /go/src/github.com/docker/distribution && git checkout -q $REGISTRY_COMMIT) \
+#	&& GOPATH=/go/src/github.com/docker/distribution/Godeps/_workspace:/go \
+#		go build -o /go/bin/registry-v2 github.com/docker/distribution/cmd/registry
 
 # Get the "docker-py" source so we can run their integration tests
-ENV DOCKER_PY_COMMIT 91985b239764fe54714fa0a93d52aa362357d251
-RUN git clone https://github.com/docker/docker-py.git /docker-py \
-	&& cd /docker-py \
-	&& git checkout -q $DOCKER_PY_COMMIT
+#ENV DOCKER_PY_COMMIT 91985b239764fe54714fa0a93d52aa362357d251
+#RUN git clone https://github.com/docker/docker-py.git /docker-py \
+#	&& cd /docker-py \
+#	&& git checkout -q $DOCKER_PY_COMMIT
 
 # Setup s3cmd config
 RUN { \
@@ -143,26 +143,26 @@ ENV DOCKER_BUILDTAGS apparmor selinux btrfs_noversion
 RUN ln -sfv $PWD/.bashrc ~/.bashrc
 
 # Get useful and necessary Hub images so we can "docker load" locally instead of pulling
-COPY contrib/download-frozen-image.sh /go/src/github.com/docker/docker/contrib/
-RUN ./contrib/download-frozen-image.sh /docker-frozen-images \
-	busybox:latest@4986bf8c15363d1c5d15512d5266f8777bfba4974ac56e3270e7760f6f0a8125 \
-	hello-world:latest
+#COPY contrib/download-frozen-image.sh /go/src/github.com/docker/docker/contrib/
+#RUN ./contrib/download-frozen-image.sh /docker-frozen-images \
+#	busybox:latest@4986bf8c15363d1c5d15512d5266f8777bfba4974ac56e3270e7760f6f0a8125 \
+#	hello-world:latest
 # see also "hack/make/.ensure-frozen-images" (which needs to be updated any time this list is)
 
 # Install man page generator
 COPY vendor /go/src/github.com/docker/docker/vendor
 # (copy vendor/ because go-md2man needs golang.org/x/net)
-RUN set -x \
-	&& git clone -b v1.0.1 https://github.com/cpuguy83/go-md2man.git /go/src/github.com/cpuguy83/go-md2man \
-	&& git clone -b v1.2 https://github.com/russross/blackfriday.git /go/src/github.com/russross/blackfriday \
-	&& go install -v github.com/cpuguy83/go-md2man
+#RUN set -x \
+#	&& git clone -b v1.0.1 https://github.com/cpuguy83/go-md2man.git /go/src/github.com/cpuguy83/go-md2man \
+#	&& git clone -b v1.2 https://github.com/russross/blackfriday.git /go/src/github.com/russross/blackfriday \
+#	&& go install -v github.com/cpuguy83/go-md2man
 
 # install toml validator
-ENV TOMLV_COMMIT 9baf8a8a9f2ed20a8e54160840c492f937eeaf9a
-RUN set -x \
-	&& git clone https://github.com/BurntSushi/toml.git /go/src/github.com/BurntSushi/toml \
-	&& (cd /go/src/github.com/BurntSushi/toml && git checkout -q $TOMLV_COMMIT) \
-	&& go install -v github.com/BurntSushi/toml/cmd/tomlv
+#ENV TOMLV_COMMIT 9baf8a8a9f2ed20a8e54160840c492f937eeaf9a
+#RUN set -x \
+#	&& git clone https://github.com/BurntSushi/toml.git /go/src/github.com/BurntSushi/toml \
+#	&& (cd /go/src/github.com/BurntSushi/toml && git checkout -q $TOMLV_COMMIT) \
+#	&& go install -v github.com/BurntSushi/toml/cmd/tomlv
 
 # Wrap all commands in the "docker-in-docker" script to allow nested containers
 ENTRYPOINT ["hack/dind"]
