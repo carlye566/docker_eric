@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"strings"
 	"sync"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/docker/docker/daemon/execdriver"
@@ -29,6 +30,8 @@ type execConfig struct {
 	OpenStderr bool
 	OpenStdout bool
 	Container  *Container
+
+	waitStart chan struct{}
 }
 
 type execStore struct {
@@ -70,6 +73,11 @@ func (e *execStore) List() []string {
 }
 
 func (execConfig *execConfig) Resize(h, w int) error {
+	select {
+	case <-execConfig.waitStart:
+	case <-time.After(time.Second):
+		return fmt.Errorf("Exec %s is not running, so it can not be resized.", execConfig.ID)
+	}
 	return execConfig.ProcessConfig.Terminal.Resize(h, w)
 }
 
@@ -149,6 +157,7 @@ func (d *Daemon) ContainerExecCreate(job *engine.Job) engine.Status {
 		ProcessConfig: processConfig,
 		Container:     container,
 		Running:       false,
+		waitStart:     make(chan struct{}),
 	}
 
 	container.LogEvent("exec_create: " + execConfig.ProcessConfig.Entrypoint + " " + strings.Join(execConfig.ProcessConfig.Arguments, " "))
@@ -268,8 +277,6 @@ func (container *Container) Exec(execConfig *execConfig) error {
 	container.Lock()
 	defer container.Unlock()
 
-	waitStart := make(chan struct{})
-
 	callback := func(processConfig *execdriver.ProcessConfig, pid int) {
 		if processConfig.Tty {
 			// The callback is called after the process Start()
@@ -279,7 +286,7 @@ func (container *Container) Exec(execConfig *execConfig) error {
 				c.Close()
 			}
 		}
-		close(waitStart)
+		close(execConfig.waitStart)
 	}
 
 	// We use a callback here instead of a goroutine and an chan for
@@ -288,7 +295,7 @@ func (container *Container) Exec(execConfig *execConfig) error {
 
 	// Exec should not return until the process is actually running
 	select {
-	case <-waitStart:
+	case <-execConfig.waitStart:
 	case err := <-cErr:
 		return err
 	}
