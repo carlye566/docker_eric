@@ -665,6 +665,7 @@ func (daemon *Daemon) newContainer(name string, config *runconfig.Config, imgID 
 		execCommands:    newExecStore(),
 	}
 	container.root = daemon.containerRoot(container.ID)
+	log.Infof("Add new container id %s, name %s", container.ID, container.Name)
 	return container, err
 }
 
