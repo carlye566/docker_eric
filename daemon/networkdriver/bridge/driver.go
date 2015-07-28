@@ -93,6 +93,7 @@ var (
 	HostIP           string
 	fixedIPBridgeIPv4Network *net.IPNet
 	enableIPTables    = false
+	hostIface        string
 )
 
 func getDefaultGateway() string {
@@ -129,6 +130,7 @@ func InitDriver(job *engine.Job) engine.Status {
 		fixedCIDRv6    = job.Getenv("FixedCIDRv6")
 	)
 	enableIPTables = job.GetenvBool("EnableIptables")
+	hostIface	= job.Getenv("HostIface")
 
 	// try to modprobe bridge first
 	// see gh#12177
@@ -320,43 +322,52 @@ func InitIPMode(job *engine.Job) engine.Status {
 	}
 	initPortMapper()
 	defaultGatewayIP = getDefaultGateway()
-	addrv4, _, err := networkdriver.GetIfaceAddr(DefaultFixedIpNetworkBridge)
-	if err != nil {
-		//bridge not exist, disabled fixed ip mode
-		eth1addrv4, _, err1 := networkdriver.GetIfaceAddr("eth1")
-		if err1 == nil {
-			HostIP = eth1addrv4.(*net.IPNet).IP.String()
+	////fixed host iface
+	ethArr := [4]string{hostIface, DefaultFixedIpNetworkBridge, "eth1", "eth0"}
+	for index, iface := range ethArr {
+		if "" == iface {
+			//If user don't specify -host-iface option, iface should be empty, thus continue here. 
+			continue
+		}
+		addrv4, _, err := networkdriver.GetIfaceAddr(iface)
+		if err == nil {
+			HostIP = addrv4.(*net.IPNet).IP.String()
+			if iface == DefaultFixedIpNetworkBridge {
+				fixedIPBridgeIPv4Network = addrv4.(*net.IPNet)
+				return registerNetworkJobs(job)
+			}
+			break
 		} else {
-			log.Errorf("eth1 not exists %v", err1)
-			eth0addrv4, _, err2 := networkdriver.GetIfaceAddr("eth0")
-			if err2 == nil {
-				HostIP = eth0addrv4.(*net.IPNet).IP.String()
-			} else {
-				log.Errorf("eth0 not exists %v", err1)
+			if 0 == index {
+				return job.Error(fmt.Errorf("%s not exists %v", iface, err))	
+			}
+
+			log.info("%s not exists %v", iface, err)
+
+			if "eth0" == iface {
 				return job.Error(fmt.Errorf("Can't retrieve host ip address."))
 			}
 		}
-		log.Infof("host ip is %s", HostIP)
-		//host ip is used for snat and set host ip env
-		if enableIPTables && job.EnvExists("EnableIpMasq") && job.GetenvBool("EnableIpMasq") {
-			//setup snat rule
-			_, bip, err := net.ParseCIDR(bridgeIPv4Network.String())
-			if err != nil {
-				return job.Error(err)
-			}
-			snat := []string{"-s", bip.String(), "-d", bip.String(), "-o", bridgeIface, "-j", "SNAT", "--to-source", HostIP}
-			if !iptables.Exists(iptables.Nat, "POSTROUTING", snat...) {
-				if output, err := iptables.Raw(append([]string{
-					"-t", string(iptables.Nat), "-I", "POSTROUTING"}, snat...)...); err != nil {
-					return job.Error(fmt.Errorf("Unable to enable network bridge SNAT: %s", err))
-				} else if len(output) != 0 {
-					return job.Error(&iptables.ChainError{Chain: "POSTROUTING", Output: output})
-				}
+	}
+
+	/////if the hostip is not fixed ip. Do the nat job
+	log.Infof("host ip is %s", HostIP)
+	//host ip is used for snat and set host ip env
+	if job.EnvExists("EnableIpMasq") && job.GetenvBool("EnableIpMasq") {
+		//setup snat rule
+		_, bip, err := net.ParseCIDR(bridgeIPv4Network.String())
+		if err != nil {
+			return job.Error(err)
+		}
+		snat := []string{"-s", bip.String(), "-d", bip.String(), "-o", bridgeIface, "-j", "SNAT", "--to-source", HostIP}
+		if !iptables.Exists(iptables.Nat, "POSTROUTING", snat...) {
+			if output, err := iptables.Raw(append([]string{
+				"-t", string(iptables.Nat), "-I", "POSTROUTING"}, snat...)...); err != nil {
+				return job.Error(fmt.Errorf("Unable to enable network bridge SNAT: %s", err))
+			} else if len(output) != 0 {
+				return job.Error(&iptables.ChainError{Chain: "POSTROUTING", Output: output})
 			}
 		}
-	} else {
-		fixedIPBridgeIPv4Network = addrv4.(*net.IPNet)
-		HostIP = fixedIPBridgeIPv4Network.IP.String()
 	}
 	return registerNetworkJobs(job)
 }
@@ -1016,3 +1027,4 @@ func removeMarkIPTables(ip, bridge string, num int64) error {
 	}
 	return nil
 }
+
