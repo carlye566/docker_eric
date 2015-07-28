@@ -52,6 +52,7 @@ type Config struct {
 	Labels                      []string
 	Ulimits                     map[string]*ulimit.Ulimit
 	LogConfig                   runconfig.LogConfig
+	HostIface                   string
 }
 
 // InstallFlags adds command-line options to the top-level flag parser for
@@ -90,6 +91,7 @@ func (config *Config) InstallFlags() {
 	config.Ulimits = make(map[string]*ulimit.Ulimit)
 	opts.UlimitMapVar(config.Ulimits, []string{"-default-ulimit"}, "Set default ulimits for containers")
 	flag.StringVar(&config.LogConfig.Type, []string{"-log-driver"}, "json-file", "Containers logging driver")
+	flag.StringVar(&config.HostIface, []string{"-host-iface"}, "", "Select the host network interface to use")
 }
 
 func getDefaultNetworkMtu() int {
