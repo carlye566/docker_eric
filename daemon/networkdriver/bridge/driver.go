@@ -342,7 +342,7 @@ func InitIPMode(job *engine.Job) engine.Status {
 				return job.Error(fmt.Errorf("%s not exists %v", iface, err))	
 			}
 
-			log.info("%s not exists %v", iface, err)
+			log.Infof("%s not exists %v", iface, err)
 
 			if "eth0" == iface {
 				return job.Error(fmt.Errorf("Can't retrieve host ip address."))
