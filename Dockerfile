@@ -58,7 +58,7 @@ RUN apt-get update && apt-get install -y \
 	--no-install-recommends
 
 # Get lvm2 source for compiling statically
-RUN git clone -b v2_02_103 https://git.fedorahosted.org/git/lvm2.git /usr/local/lvm2
+RUN git clone -b v2_02_103 https://github.com/Distrotech/LVM2.git /usr/local/lvm2
 # see https://git.fedorahosted.org/cgit/lvm2.git/refs/tags for release tags
 
 # Compile and install lvm2
