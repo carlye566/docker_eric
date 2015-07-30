@@ -95,6 +95,9 @@ func (daemon *Daemon) ContainerMonitorStart(id string, status StartStatus) error
 		return err
 	}
 
+	container.Lock()
+	defer container.Unlock()
+
 	if container.Paused {
 		return fmt.Errorf("Cannot start a paused container, try unpause instead.")
 	}
@@ -119,6 +122,9 @@ func (daemon *Daemon) ContainerMonitorStop(id string, status StopStatus) error {
 	if err != nil {
 		return err
 	}
+
+	container.Lock()
+	defer container.Unlock()
 
 	if !container.Running {
 		return fmt.Errorf("Container already stoped")

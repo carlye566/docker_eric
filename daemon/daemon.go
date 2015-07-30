@@ -38,6 +38,7 @@ import (
 	"github.com/docker/docker/trust"
 	"github.com/docker/libcontainer/netlink"
 	"github.com/docker/libnetwork"
+	"reflect"
 )
 
 var (
@@ -205,21 +206,26 @@ func (daemon *Daemon) register(container *Container, updateSuffixarray bool) err
 	}
 
 	if container.IsRunning() {
-		logrus.Debugf("killing old running container %s", container.ID)
-		// Set exit code to 128 + SIGKILL (9) to properly represent unsuccessful exit
-		container.SetStopped(&execdriver.ExitStatus{ExitCode: 137})
+		if daemon.config.monitor == "builtin" {
+			logrus.Debugf("killing old running container %s", container.ID)
+			// Set exit code to 128 + SIGKILL (9) to properly represent unsuccessful exit
+			container.SetStopped(&execdriver.ExitStatus{ExitCode: 137})
 
-		// use the current driver and ensure that the container is dead x.x
-		cmd := &execdriver.Command{
-			ID: container.ID,
-		}
-		daemon.execDriver.Terminate(cmd)
+			// use the current driver and ensure that the container is dead x.x
+			cmd := &execdriver.Command{
+				ID: container.ID,
+			}
+			daemon.execDriver.Terminate(cmd)
 
-		if err := container.Unmount(); err != nil {
-			logrus.Debugf("unmount error %s", err)
-		}
-		if err := container.ToDisk(); err != nil {
-			logrus.Debugf("saving stopped state to disk %s", err)
+			if err := container.Unmount(); err != nil {
+				logrus.Debugf("unmount error %s", err)
+			}
+			if err := container.ToDisk(); err != nil {
+				logrus.Debugf("saving stopped state to disk %s", err)
+			}
+		} else {
+			//TODO fix container created state
+			daemon.restoreContainer(container)
 		}
 	}
 
@@ -742,26 +748,28 @@ func NewDaemon(config *Config, registryService *registry.Service) (daemon *Daemo
 
 func (daemon *Daemon) Shutdown() error {
 	if daemon.containers != nil {
-		group := sync.WaitGroup{}
-		logrus.Debug("starting clean shutdown of all containers...")
-		for _, container := range daemon.List() {
-			c := container
-			if c.IsRunning() {
-				logrus.Debugf("stopping %s", c.ID)
-				group.Add(1)
+		if daemon.config.monitor == "builtin" {
+			group := sync.WaitGroup{}
+			logrus.Debug("starting clean shutdown of all containers...")
+			for _, container := range daemon.List() {
+				c := container
+				if c.IsRunning() {
+					logrus.Debugf("stopping %s", c.ID)
+					group.Add(1)
 
-				go func() {
-					defer group.Done()
-					// If container failed to exit in 10 seconds of SIGTERM, then using the force
-					if err := c.Stop(10); err != nil {
-						logrus.Errorf("Stop container %s with error: %v", c.ID, err)
-					}
-					c.WaitStop(-1 * time.Second)
-					logrus.Debugf("container stopped %s", c.ID)
-				}()
+					go func() {
+						defer group.Done()
+						// If container failed to exit in 10 seconds of SIGTERM, then using the force
+						if err := c.Stop(10); err != nil {
+							logrus.Errorf("Stop container %s with error: %v", c.ID, err)
+						}
+						c.WaitStop(-1 * time.Second)
+						logrus.Debugf("container stopped %s", c.ID)
+					}()
+				}
 			}
+			group.Wait()
 		}
-		group.Wait()
 
 		// trigger libnetwork GC only if it's initialized
 		if daemon.netController != nil {

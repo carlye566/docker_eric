@@ -163,15 +163,21 @@ func (m dockerMonitor) notifyStop(status StopStatus) error {
 }
 
 func (m dockerMonitor) notifyDaemon(url, file string, d []byte) error {
+	if err := dumpToDisk(m.container.root, file, d); err != nil {
+		return err
+	}
 	for i := 0; i < http_retry_times; i++ {
 		if err := httpNotify(url, m.container.ID, d); err != nil {
 			logrus.Infof("http notify daemon %s failed %v, retry %d times", string(d), err, i)
+			if i == http_retry_times-1 {
+				return err
+			}
 		} else {
 			break
 		}
 		time.Sleep(http_retry_interval_second * time.Second)
 	}
-	return dumpToDisk(m.container.root, file, d)
+	return nil
 }
 
 func httpNotify(url, cid string, data []byte) error {
@@ -191,4 +197,46 @@ func httpNotify(url, cid string, data []byte) error {
 	}
 	body, _ := ioutil.ReadAll(resp.Body)
 	return fmt.Errorf(string(body))
+}
+
+func (container *Container) startStatusPath() string {
+	return filepath.Join(container.root, start_status_file)
+}
+
+func (container *Container) stopStatusPath() string {
+	return filepath.Join(container.root, stop_status_file)
+}
+
+func (container *Container) loadStartStatus() StartStatus {
+	pth := container.startStatusPath()
+	_, err := os.Stat(pth)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	f, err := os.Open(pth)
+	if err != nil {
+		logrus.Errorf("Error open path %s", pth)
+		return nil
+	}
+	defer f.Close()
+	status := StartStatus{}
+	json.NewDecoder(f).Decode(&status)
+	return status
+}
+
+func (container *Container) loadStopStatus() StopStatus {
+	pth := container.stopStatusPath()
+	_, err := os.Stat(pth)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	f, err := os.Open(pth)
+	if err != nil {
+		logrus.Errorf("Error open path %s", pth)
+		return nil
+	}
+	defer f.Close()
+	status := StopStatus{}
+	json.NewDecoder(f).Decode(&status)
+	return status
 }
