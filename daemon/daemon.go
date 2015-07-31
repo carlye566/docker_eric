@@ -38,7 +38,6 @@ import (
 	"github.com/docker/docker/trust"
 	"github.com/docker/libcontainer/netlink"
 	"github.com/docker/libnetwork"
-	"reflect"
 )
 
 var (
@@ -225,7 +224,7 @@ func (daemon *Daemon) register(container *Container, updateSuffixarray bool) err
 			}
 		} else {
 			//TODO fix container created state
-			daemon.restoreContainer(container)
+			daemon.containerRestore(container)
 		}
 	}
 

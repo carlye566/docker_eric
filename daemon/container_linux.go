@@ -44,6 +44,7 @@ type Container struct {
 }
 
 func killProcessDirectly(container *Container) error {
+	logrus.Debugf("Killing container %s directly with sigkill", container.ID)
 	return signalProcessDirectly(container, 9)
 }
 

@@ -74,6 +74,6 @@ func (config *Config) InstallFlags() {
 	flag.BoolVar(&config.Bridge.InterContainerCommunication, []string{"#icc", "-icc"}, true, "Enable inter-container communication")
 	opts.IPVar(&config.Bridge.DefaultIP, []string{"#ip", "-ip"}, "0.0.0.0", "Default IP when binding container ports")
 	flag.BoolVar(&config.Bridge.EnableUserlandProxy, []string{"-userland-proxy"}, true, "Use userland proxy for loopback traffic")
-	flag.StringVar(&config.monitor, []string{"-monitor"}, "builtin", "Which monitor use to monitor container status")
+	flag.StringVar(&config.monitor, []string{"-monitor"}, "external", "Which monitor use to monitor container status")
 	config.attachExperimentalFlags()
 }

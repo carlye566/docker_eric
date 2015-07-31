@@ -32,7 +32,6 @@ import (
 	"github.com/docker/docker/pkg/symlink"
 	"github.com/docker/docker/runconfig"
 	"github.com/docker/docker/volume"
-	"reflect"
 )
 
 var (
@@ -452,7 +451,7 @@ func (container *Container) Kill() error {
 	}
 
 	// 1. Send SIGKILL
-	if reflect.TypeOf(container.monitor).String() == "*daemon.builtinMonitor" {
+	if container.daemon.isBuiltinMonitor() {
 		if err := container.killPossiblyDeadProcess(9); err != nil {
 			// While normally we might "return err" here we're not going to
 			// because if we can't stop the container by this point then
@@ -496,7 +495,7 @@ func (container *Container) Stop(seconds int) error {
 	}
 
 	// 1. Send a SIGTERM
-	if reflect.TypeOf(container.monitor).String() == "*daemon.builtinMonitor" {
+	if container.daemon.isBuiltinMonitor() {
 		if err := container.killPossiblyDeadProcess(15); err != nil {
 			logrus.Infof("Failed to send SIGTERM to the process, force killing")
 			if err := container.killPossiblyDeadProcess(9); err != nil {
@@ -517,7 +516,7 @@ func (container *Container) Stop(seconds int) error {
 	if _, err := container.WaitStop(time.Duration(seconds) * time.Second); err != nil {
 		logrus.Infof("Container %v failed to exit within %d seconds of SIGTERM - using the force", container.ID, seconds)
 		// 3. If it doesn't, then send SIGKILL
-		if reflect.TypeOf(container.monitor).String() == "*daemon.builtinMonitor" {
+		if container.daemon.isBuiltinMonitor() {
 			if err := container.Kill(); err != nil {
 				container.WaitStop(-1 * time.Second)
 				return err

@@ -126,6 +126,7 @@ func reexecMonitor() {
 	if err != nil {
 		fail("start container err %v", err)
 	}
+	logrus.Infof("[monitor] I'm going to shutdown")
 }
 
 func fail(message string, args ...interface{}) {
@@ -134,16 +135,18 @@ func fail(message string, args ...interface{}) {
 }
 
 func dumpToDisk(containerRoot, file string, data []byte) error {
-	pidfile := filepath.Join(containerRoot, file)
-	return ioutil.WriteFile(pidfile, data, 0666)
+	f := filepath.Join(containerRoot, file)
+	return ioutil.WriteFile(f, data, 0666)
 }
 
 func (m dockerMonitor) callback(processConfig *execdriver.ProcessConfig, pid int) {
-	logrus.Infof("[monitor] pid %d", pid)
-	m.notifyStart(StartStatus{Pid: pid})
+	m.container.setRunning(pid)
 	if err := m.container.ToDisk(); err != nil {
 		logrus.Debugf("%s", err)
 	}
+	logrus.Infof("[monitor] pid %d", pid)
+	m.notifyStart(StartStatus{Pid: pid})
+
 }
 
 func (m dockerMonitor) notifyStart(status StartStatus) error {
@@ -207,36 +210,34 @@ func (container *Container) stopStatusPath() string {
 	return filepath.Join(container.root, stop_status_file)
 }
 
-func (container *Container) loadStartStatus() StartStatus {
+func (container *Container) loadStartStatus() (error, StartStatus) {
+	var status StartStatus
 	pth := container.startStatusPath()
 	_, err := os.Stat(pth)
 	if os.IsNotExist(err) {
-		return nil
+		return fmt.Errorf("start status file not exits"), status
 	}
 	f, err := os.Open(pth)
 	if err != nil {
-		logrus.Errorf("Error open path %s", pth)
-		return nil
+		return fmt.Errorf("Error open start status file %s", pth), status
 	}
 	defer f.Close()
-	status := StartStatus{}
 	json.NewDecoder(f).Decode(&status)
-	return status
+	return nil, status
 }
 
-func (container *Container) loadStopStatus() StopStatus {
+func (container *Container) loadStopStatus() (error, StopStatus) {
+	var status StopStatus
 	pth := container.stopStatusPath()
 	_, err := os.Stat(pth)
 	if os.IsNotExist(err) {
-		return nil
+		return fmt.Errorf("stop status file not exits"), status
 	}
 	f, err := os.Open(pth)
 	if err != nil {
-		logrus.Errorf("Error open path %s", pth)
-		return nil
+		return fmt.Errorf("Error open stop status file %s", pth), status
 	}
 	defer f.Close()
-	status := StopStatus{}
 	json.NewDecoder(f).Decode(&status)
-	return status
+	return nil, status
 }

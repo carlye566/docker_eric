@@ -61,7 +61,7 @@ func (m externalMonitor) Start() error {
 	if m.startErr != nil {
 		return m.startErr
 	}
-	err = exec.Wait()  //to do wait for stop
+	err = exec.Wait()
 	if err != nil {
 		logrus.Errorf("%s", err)
 		return err
@@ -94,9 +94,9 @@ func (daemon *Daemon) ContainerMonitorStart(id string, status StartStatus) error
 	if err != nil {
 		return err
 	}
-
-	container.Lock()
-	defer container.Unlock()
+//
+//	container.Lock()
+//	defer container.Unlock()
 
 	if container.Paused {
 		return fmt.Errorf("Cannot start a paused container, try unpause instead.")
@@ -122,13 +122,17 @@ func (daemon *Daemon) ContainerMonitorStop(id string, status StopStatus) error {
 	if err != nil {
 		return err
 	}
-
-	container.Lock()
-	defer container.Unlock()
+//
+//	container.Lock()
+//	defer container.Unlock()
 
 	if !container.Running {
 		return fmt.Errorf("Container already stoped")
 	}
 	container.setStopped(&status.ExitStatus)
 	return nil
+}
+
+func (daemon *Daemon) isBuiltinMonitor() bool {
+	return daemon.config.monitor == "builtin"
 }
