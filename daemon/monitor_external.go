@@ -94,9 +94,10 @@ func (daemon *Daemon) ContainerMonitorStart(id string, status StartStatus) error
 	if err != nil {
 		return err
 	}
-//
-//	container.Lock()
-//	defer container.Unlock()
+
+	externalMonitor := container.monitor.(*externalMonitor)
+	externalMonitor.mux.Lock()
+	defer externalMonitor.mux.Unlock()
 
 	if container.Paused {
 		return fmt.Errorf("Cannot start a paused container, try unpause instead.")
@@ -108,7 +109,6 @@ func (daemon *Daemon) ContainerMonitorStart(id string, status StartStatus) error
 	startSignal := container.monitor.StartSignal()
 	if status.Err != "" {
 		//TODO set container status
-		externalMonitor := container.monitor.(externalMonitor)
 		externalMonitor.startErr = fmt.Errorf(status.Err)
 	} else {
 		container.setRunning(status.Pid)
@@ -122,9 +122,10 @@ func (daemon *Daemon) ContainerMonitorStop(id string, status StopStatus) error {
 	if err != nil {
 		return err
 	}
-//
-//	container.Lock()
-//	defer container.Unlock()
+
+	externalMonitor := container.monitor.(*externalMonitor)
+	externalMonitor.mux.Lock()
+	defer externalMonitor.mux.Unlock()
 
 	if !container.Running {
 		return fmt.Errorf("Container already stoped")
