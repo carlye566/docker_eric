@@ -5,7 +5,10 @@ func (daemon *Daemon) ContainerResize(name string, height, width int) error {
 	if err != nil {
 		return err
 	}
+	return container.ContainerResize(height, width)
+}
 
+func (container *Container) ContainerResize(height, width int) error {
 	return container.Resize(height, width)
 }
 

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/docker/docker/pkg/reexec"
 	"github.com/docker/docker/runconfig"
 	"github.com/docker/docker/autogen/dockerversion"
 	"github.com/docker/docker/pkg/ioutils"
@@ -28,8 +27,6 @@ const (
 
 // TODO this needs to be addressed
 	root = "/var/run/docker"
-// TODO this needs to be addressed
-	fakeSelf = "/usr/bin/docker"
 
 	http_retry_times = 5
 	http_retry_interval_second = 3
@@ -38,7 +35,7 @@ const (
 	notify_stop_url = "http://127.0.0.1:2375/monitor/%s/stop"
 )
 
-type dockerMonitor struct {
+type DockerMonitor struct {
 	commonMonitor
 }
 
@@ -53,12 +50,8 @@ type StopStatus struct  {
 	Err string
 }
 
-func init() {
-	reexec.RegisterSelf(docker_monitor, reexecMonitor, fakeSelf)
-}
-
-func newDockerMonitor(container *Container, policy runconfig.RestartPolicy) *dockerMonitor {
-	return &dockerMonitor{
+func newDockerMonitor(container *Container, policy runconfig.RestartPolicy) *DockerMonitor {
+	return &DockerMonitor{
 		commonMonitor: commonMonitor{
 			restartPolicy:    policy,
 			container:        container,
@@ -68,9 +61,7 @@ func newDockerMonitor(container *Container, policy runconfig.RestartPolicy) *doc
 	}
 }
 
-var monitor *dockerMonitor
-
-func reexecMonitor() {
+func InitDockerMonitor() *DockerMonitor {
 	var (
 		containerId = os.Args[1]
 		root = os.Args[2]
@@ -104,7 +95,11 @@ func reexecMonitor() {
 	//TODO env in ProcessConfig.execCmd should be changed to ProcessConfig.env
 	env := container.createDaemonEnvironment([]string{})
 	container.command.ProcessConfig.Env = env
-	monitor = newDockerMonitor(container, container.hostConfig.RestartPolicy)
+	return newDockerMonitor(container, container.hostConfig.RestartPolicy)
+}
+
+func (monitor DockerMonitor) Start() {
+	container := monitor.container
 	sysInitPath := filepath.Join(root, "init", fmt.Sprintf("dockerinit-%s", dockerversion.VERSION))
 	execRoot := filepath.Join(root, "execdriver", "native")
 	driver, err := native.NewDriver(execRoot, sysInitPath, []string{})
@@ -139,7 +134,7 @@ func dumpToDisk(containerRoot, file string, data []byte) error {
 	return ioutil.WriteFile(f, data, 0666)
 }
 
-func (m dockerMonitor) callback(processConfig *execdriver.ProcessConfig, pid int) {
+func (m DockerMonitor) callback(processConfig *execdriver.ProcessConfig, pid int) {
 	m.container.setRunning(pid)
 	if err := m.container.ToDisk(); err != nil {
 		logrus.Debugf("%s", err)
@@ -149,7 +144,7 @@ func (m dockerMonitor) callback(processConfig *execdriver.ProcessConfig, pid int
 
 }
 
-func (m dockerMonitor) notifyStart(status StartStatus) error {
+func (m DockerMonitor) notifyStart(status StartStatus) error {
 	d, err := json.Marshal(status)
 	if err != nil {
 		return err
@@ -157,7 +152,7 @@ func (m dockerMonitor) notifyStart(status StartStatus) error {
 	return m.notifyDaemon(notify_start_url, start_status_file, d)
 }
 
-func (m dockerMonitor) notifyStop(status StopStatus) error {
+func (m DockerMonitor) notifyStop(status StopStatus) error {
 	d, err := json.Marshal(status)
 	if err != nil {
 		return err
@@ -165,7 +160,7 @@ func (m dockerMonitor) notifyStop(status StopStatus) error {
 	return m.notifyDaemon(notify_stop_url, stop_status_file, d)
 }
 
-func (m dockerMonitor) notifyDaemon(url, file string, d []byte) error {
+func (m DockerMonitor) notifyDaemon(url, file string, d []byte) error {
 	if err := dumpToDisk(m.container.root, file, d); err != nil {
 		return err
 	}
@@ -181,6 +176,10 @@ func (m dockerMonitor) notifyDaemon(url, file string, d []byte) error {
 		time.Sleep(http_retry_interval_second * time.Second)
 	}
 	return nil
+}
+
+func (m DockerMonitor) Container() *Container {
+	return m.container
 }
 
 func httpNotify(url, cid string, data []byte) error {
@@ -225,3 +224,4 @@ func (container *Container) loadStopStatus() (error, StopStatus) {
 	json.NewDecoder(f).Decode(&status)
 	return nil, status
 }
+

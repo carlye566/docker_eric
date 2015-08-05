@@ -18,7 +18,10 @@ func (daemon *Daemon) ContainerAttachWithLogs(name string, c *ContainerAttachWit
 	if err != nil {
 		return err
 	}
+	return container.ContainerAttachWithLogs(c)
+}
 
+func (container *Container) ContainerAttachWithLogs(c *ContainerAttachWithLogsConfig) error {
 	var errStream io.Writer
 
 	if !container.Config.Tty {
