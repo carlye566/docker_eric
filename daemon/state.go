@@ -23,11 +23,14 @@ type State struct {
 	StartedAt         time.Time
 	FinishedAt        time.Time
 	waitChan          chan struct{}
+
+	restoreChan       chan struct{}
 }
 
 func NewState() *State {
 	return &State{
-		waitChan: make(chan struct{}),
+		waitChan:    make(chan struct{}),
+		restoreChan: make(chan struct{}),
 	}
 }
 

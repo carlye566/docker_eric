@@ -1,5 +1,4 @@
 package daemon
-import "fmt"
 
 func (daemon *Daemon) containerRestore(container *Container) {
 	container.Lock()
@@ -9,11 +8,7 @@ func (daemon *Daemon) containerRestore(container *Container) {
 		container.setStopped(&stopStatus.ExitStatus)
 		return
 	}
-	if err, startStatus := container.loadStartStatus(); err == nil {
-		if startStatus.Err != "" {
-			container.setError(fmt.Errorf(startStatus.Err))
-		} else {
-			container.setRunning(startStatus.Pid)
-		}
-	}
+
+	container.monitor = newExternalMonitor(container, container.hostConfig.RestartPolicy)
+	close(container.restoreChan)
 }
