@@ -95,6 +95,7 @@ func (daemon *Daemon) ContainerMonitorStart(id string, status StartStatus) error
 		return err
 	}
 
+	<-container.registerChan
 	externalMonitor := container.monitor.(*externalMonitor)
 	externalMonitor.mux.Lock()
 	defer externalMonitor.mux.Unlock()
@@ -125,7 +126,7 @@ func (daemon *Daemon) ContainerMonitorStop(id string, status StopStatus) error {
 
 	//wait for container to restore
 	//TODO add unit test to confirm this works
-	<-container.restoreChan
+	<-container.registerChan
 
 	externalMonitor := container.monitor.(*externalMonitor)
 	externalMonitor.mux.Lock()

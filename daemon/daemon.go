@@ -227,7 +227,7 @@ func (daemon *Daemon) register(container *Container, updateSuffixarray bool) err
 			daemon.containerRestore(container)
 		}
 	}
-
+	close(container.registerChan)
 	return nil
 }
 

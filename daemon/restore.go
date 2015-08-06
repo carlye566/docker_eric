@@ -10,5 +10,4 @@ func (daemon *Daemon) containerRestore(container *Container) {
 	}
 
 	container.monitor = newExternalMonitor(container, container.hostConfig.RestartPolicy)
-	close(container.restoreChan)
 }
