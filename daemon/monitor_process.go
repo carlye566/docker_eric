@@ -179,6 +179,8 @@ func (m DockerMonitor) notifyDaemon(url, file string, d []byte) error {
 }
 
 func (m DockerMonitor) Container() *Container {
+	//TODO add unit tests to confirm it works
+	m.container.WaitRunning(-1)
 	return m.container
 }
 

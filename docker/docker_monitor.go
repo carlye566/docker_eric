@@ -15,6 +15,7 @@ const (
 	fakeSelf = "/usr/bin/docker"
 	docker_monitor = "docker_monitor"
 	socketGroup = "docker"
+	MonitorSockDir = "/var/run/docker/sock"
 )
 
 func init() {
@@ -23,13 +24,12 @@ func init() {
 
 func mainDockerMonitor() {
 	logrus.Debugf("Starting docker monitor %v", os.Args)
-	sockDir := "/var/run/docker/sock"
-	if err := os.MkdirAll(sockDir, 0700); err != nil && !os.IsExist(err) {
-		logrus.Errorf("can't mkdir %s:%v", sockDir, err)
+	if err := os.MkdirAll(MonitorSockDir, 0700); err != nil && !os.IsExist(err) {
+		logrus.Errorf("can't mkdir %s:%v", MonitorSockDir, err)
 		os.Exit(1)
 	}
 	monitor := daemon.InitDockerMonitor()
-	setupApiServer([]string {fmt.Sprintf("unix://%s/%s.sock", sockDir, os.Args[1])}, socketGroup, monitor)
+	setupApiServer([]string {fmt.Sprintf("unix://%s/%s.sock", MonitorSockDir, os.Args[1])}, socketGroup, monitor)
 	monitor.Start()
 }
 
