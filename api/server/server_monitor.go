@@ -1,6 +1,5 @@
 package server
 import (
-	"os"
 	"github.com/gorilla/mux"
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/pkg/version"
@@ -31,14 +30,9 @@ func NewMonitorServer(cfg *ServerConfig, monitor *daemon.DockerMonitor) *Monitor
 
 func createMonitorRouter(s *MonitorServer) *mux.Router {
 	r := mux.NewRouter()
-	if os.Getenv("DEBUG") != "" {
-		ProfilerSetup(r, "/debug/")
-	}
 	m := map[string]map[string]HttpApiFunc{
 		"GET": {
 			"/_ping":                          s.ping,
-//			"/version":                        s.getVersion,
-//			"/containers/{name:.*}/attach/ws": s.wsContainersAttach,
 		},
 		"POST": {
 			"/containers/{name:.*}/resize":  s.postContainersResize,
@@ -48,7 +42,7 @@ func createMonitorRouter(s *MonitorServer) *mux.Router {
 
 	for method, routes := range m {
 		for route, fct := range routes {
-			logrus.Debugf("Registering %s, %s", method, route)
+			logrus.Infof("Registering %s, %s", method, route)
 			// NOTE: scope issue, make sure the variables are local and won't be changed
 			localRoute := route
 			localFct := fct
@@ -67,6 +61,15 @@ func createMonitorRouter(s *MonitorServer) *mux.Router {
 		}
 	}
 	return r
+}
+
+func (s *MonitorServer) AcceptConnections() {
+	// close the lock so the listeners start accepting connections
+	select {
+	case <-s.start:
+	default:
+		close(s.start)
+	}
 }
 
 func (s *MonitorServer) postContainersResize(version version.Version, w http.ResponseWriter, r *http.Request, vars map[string]string) error {

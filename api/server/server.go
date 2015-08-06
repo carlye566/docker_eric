@@ -206,9 +206,15 @@ func httpError(w http.ResponseWriter, err error) {
 		"impossible":            http.StatusNotAcceptable,
 		"wrong login/password":  http.StatusUnauthorized,
 		"hasn't been activated": http.StatusForbidden,
+		"redirect to ":          http.StatusMovedPermanently,
 	} {
 		if strings.Contains(errStr, keyword) {
 			statusCode = status
+			if status == http.StatusMovedPermanently {
+				addr := strings.TrimLeft(errStr, keyword)
+				logrus.Debugf("redirect to %s", addr)
+				w.Header().Set("Location", addr)
+			}
 			break
 		}
 	}
@@ -1089,6 +1095,9 @@ func (s *Server) postContainersWait(version version.Version, w http.ResponseWrit
 }
 
 func (s *Server) postContainersResize(version version.Version, w http.ResponseWriter, r *http.Request, vars map[string]string) error {
+	if s.daemon.EnableHotRestart() {
+		return fmt.Errorf("Redirect to %s", fmt.Sprintf("unix:///var/run/%s.sock", vars["name"]))
+	}
 	if err := parseForm(r); err != nil {
 		return err
 	}
@@ -1109,6 +1118,9 @@ func (s *Server) postContainersResize(version version.Version, w http.ResponseWr
 }
 
 func (s *Server) postContainersAttach(version version.Version, w http.ResponseWriter, r *http.Request, vars map[string]string) error {
+	if s.daemon.EnableHotRestart() {
+		return fmt.Errorf("Redirect to %s", fmt.Sprintf("unix:///var/run/%s.sock", vars["name"]))
+	}
 	if err := parseForm(r); err != nil {
 		return err
 	}
@@ -1466,7 +1478,7 @@ func (s *Server) initTcpSocket(addr string) (l net.Listener, err error) {
 func makeHttpHandler(logging bool, localMethod string, localRoute string, handlerFunc HttpApiFunc, corsHeaders string, dockerVersion version.Version) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// log the request
-		logrus.Debugf("Calling %s %s", localMethod, localRoute)
+		logrus.Infof("Calling %s %s", localMethod, localRoute)
 
 		if logging {
 			logrus.Infof("%s %s", r.Method, r.RequestURI)

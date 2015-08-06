@@ -8,6 +8,8 @@ import (
 	"os"
 	"github.com/docker/docker/pkg/reexec"
 	"github.com/docker/docker/daemon"
+	"net/http"
+	_ "net/http/pprof"
 )
 
 const (
@@ -15,7 +17,7 @@ const (
 	fakeSelf = "/usr/bin/docker"
 	docker_monitor = "docker_monitor"
 	socketGroup = "docker"
-	MonitorSockDir = "/var/run/docker/sock"
+	MonitorSockDir = "/var/run"
 )
 
 func init() {
@@ -23,7 +25,11 @@ func init() {
 }
 
 func mainDockerMonitor() {
+	setLogLevel(logrus.DebugLevel)
 	logrus.Debugf("Starting docker monitor %v", os.Args)
+	go func() {
+		logrus.Println(http.ListenAndServe("localhost:6000", nil))
+	}()
 	if err := os.MkdirAll(MonitorSockDir, 0700); err != nil && !os.IsExist(err) {
 		logrus.Errorf("can't mkdir %s:%v", MonitorSockDir, err)
 		os.Exit(1)
@@ -41,6 +47,7 @@ func setupApiServer(protoAddrs []string, socketGroup string, monitor *daemon.Doc
 		Version:     dockerversion.VERSION,
 		SocketGroup: socketGroup,
 	}, monitor)
+	logrus.Debugf("apiserver %v", api)
 
 	// The serve API routine never exits unless an error occurs
 	// We need to start it as a goroutine and wait on it so
@@ -54,4 +61,6 @@ func setupApiServer(protoAddrs []string, socketGroup string, monitor *daemon.Doc
 		}
 		serveAPIWait <- nil
 	}()
+	api.AcceptConnections()
 }
+

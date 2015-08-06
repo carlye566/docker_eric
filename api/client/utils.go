@@ -27,6 +27,8 @@ import (
 	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/docker/pkg/term"
 	"github.com/docker/docker/registry"
+	"net"
+	"net/http/httputil"
 )
 
 var (
@@ -55,6 +57,10 @@ func (cli *DockerCli) encodeData(data interface{}) (*bytes.Buffer, error) {
 }
 
 func (cli *DockerCli) clientRequest(method, path string, in io.Reader, headers map[string][]string) (*serverResponse, error) {
+	return cli.clientRequestWithAddr(method, path, in, headers, "", "")
+}
+
+func (cli *DockerCli) clientRequestWithAddr(method, path string, in io.Reader, headers map[string][]string, proto, addr string) (*serverResponse, error) {
 
 	serverResp := &serverResponse{
 		body:       nil,
@@ -90,7 +96,18 @@ func (cli *DockerCli) clientRequest(method, path string, in io.Reader, headers m
 		req.Header.Set("Content-Type", "text/plain")
 	}
 
-	resp, err := cli.HTTPClient().Do(req)
+	var resp *http.Response
+	if addr == "" {
+		resp, err = cli.HTTPClient().Do(req)
+	} else {
+		dial, err1 := net.Dial(proto, addr)
+		if err1 != nil {
+			return serverResp, err1
+		}
+		clientconn := httputil.NewClientConn(dial, nil)
+		defer clientconn.Close()
+		resp, err = clientconn.Do(req)
+	}
 	if resp != nil {
 		serverResp.statusCode = resp.StatusCode
 	}
@@ -184,6 +201,11 @@ func (cli *DockerCli) call(method, path string, data interface{}, headers map[st
 	}
 
 	serverResp, err := cli.clientRequest(method, path, params, headers)
+	if serverResp.statusCode == http.StatusMovedPermanently {
+		protoAddrParts := strings.SplitN(serverResp.header.Get("Location"), "://", 2)
+		logrus.Infof("redirect to %v", protoAddrParts)
+		serverResp, err = cli.clientRequestWithAddr(method, path, params, headers, protoAddrParts[0], protoAddrParts[1])
+	}
 	return serverResp.body, serverResp.header, serverResp.statusCode, err
 }
 

@@ -106,6 +106,9 @@ func (monitor DockerMonitor) Start() {
 	if err != nil {
 		fail("new native driver err %v", err)
 	}
+	if err := container.startLogging(); err != nil {
+		fail("start logging failed %v", err)
+	}
 	pipes := execdriver.NewPipes(container.stdin, container.stdout, container.stderr, container.Config.OpenStdin)
 	monitor.startTime = time.Now()
 	var exitStatus execdriver.ExitStatus

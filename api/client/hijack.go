@@ -175,8 +175,38 @@ func (cli *DockerCli) hijack(method, path string, setRawTerminal bool, in io.Rea
 	defer clientconn.Close()
 
 	// Server hijacks the connection, error 'connection closed' expected
-	clientconn.Do(req)
-
+	serverResp, _ := clientconn.Do(req)
+	if serverResp.StatusCode == http.StatusMovedPermanently {
+		protoAddrParts := strings.SplitN(serverResp.Header.Get("Location"), "://", 2)
+		logrus.Infof("hijack redirect to %v", protoAddrParts)
+		if protoAddrParts[0] == "unix" {
+			for {
+				if _, err := os.Stat(protoAddrParts[1]); err != nil && os.IsNotExist(err) {
+					logrus.Infof("wait %s %v", protoAddrParts[1], err)
+					time.Sleep(time.Second)
+				} else {
+					time.Sleep(time.Second)
+					break
+				}
+			}
+		}
+		logrus.Infof("hijack start connect to %s", protoAddrParts[1])
+		dial, err = net.Dial(protoAddrParts[0], protoAddrParts[1])
+		if tcpConn, ok := dial.(*net.TCPConn); ok {
+			tcpConn.SetKeepAlive(true)
+			tcpConn.SetKeepAlivePeriod(30 * time.Second)
+		}
+		if err != nil {
+			if strings.Contains(err.Error(), "connection refused") {
+				return fmt.Errorf("Cannot connect to redirect addr %s", serverResp.Header.Get("Location"))
+			}
+			return err
+		}
+		clientconn = httputil.NewClientConn(dial, nil)
+		defer clientconn.Close()
+		// Server hijacks the connection, error 'connection closed' expected
+		clientconn.Do(req)
+	}
 	rwc, br := clientconn.Hijack()
 	defer rwc.Close()
 

@@ -181,6 +181,9 @@ func (container *Container) WriteHostConfig() error {
 
 func (container *Container) LogEvent(action string) {
 	d := container.daemon
+	if d == nil {
+		return
+	}
 	d.EventsService.Log(
 		action,
 		container.ID,
@@ -451,7 +454,7 @@ func (container *Container) Kill() error {
 	}
 
 	// 1. Send SIGKILL
-	if container.daemon.isBuiltinMonitor() {
+	if !container.daemon.EnableHotRestart() {
 		if err := container.killPossiblyDeadProcess(9); err != nil {
 			// While normally we might "return err" here we're not going to
 			// because if we can't stop the container by this point then
@@ -495,7 +498,7 @@ func (container *Container) Stop(seconds int) error {
 	}
 
 	// 1. Send a SIGTERM
-	if container.daemon.isBuiltinMonitor() {
+	if !container.daemon.EnableHotRestart() {
 		if err := container.killPossiblyDeadProcess(15); err != nil {
 			logrus.Infof("Failed to send SIGTERM to the process, force killing")
 			if err := container.killPossiblyDeadProcess(9); err != nil {
@@ -516,7 +519,7 @@ func (container *Container) Stop(seconds int) error {
 	if _, err := container.WaitStop(time.Duration(seconds) * time.Second); err != nil {
 		logrus.Infof("Container %v failed to exit within %d seconds of SIGTERM - using the force", container.ID, seconds)
 		// 3. If it doesn't, then send SIGKILL
-		if container.daemon.isBuiltinMonitor() {
+		if !container.daemon.EnableHotRestart() {
 			if err := container.Kill(); err != nil {
 				container.WaitStop(-1 * time.Second)
 				return err
@@ -716,7 +719,14 @@ func (container *Container) getLogConfig() runconfig.LogConfig {
 		return cfg
 	}
 	// Use daemon's default log config for containers
-	return container.daemon.defaultLogConfig
+	if container.daemon != nil {
+		return container.daemon.defaultLogConfig
+	} else {
+		//TODO fix default log
+		return runconfig.LogConfig{
+			Type: "json-file",
+		}
+	}
 }
 
 func (container *Container) getLogger() (logger.Logger, error) {
@@ -747,6 +757,7 @@ func (container *Container) getLogger() (logger.Logger, error) {
 }
 
 func (container *Container) startLogging() error {
+	logrus.Debugf("start logging container %v", container)
 	cfg := container.getLogConfig()
 	if cfg.Type == "none" {
 		return nil // do not start logging routines

@@ -139,8 +139,8 @@ func (c *linuxContainer) commandTemplate(p *Process, childPipe *os.File) (*exec.
 		Args: c.initArgs,
 	}
 	cmd.Stdin = p.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = p.Stdout
+	cmd.Stderr = p.Stderr
 	cmd.Dir = c.config.Rootfs
 	if cmd.SysProcAttr == nil {
 		cmd.SysProcAttr = &syscall.SysProcAttr{}

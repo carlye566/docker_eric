@@ -166,19 +166,19 @@ func (cli *DockerCli) CmdRun(args ...string) error {
 		close(hijacked)
 	}
 	// Acknowledge the hijack before starting
-	select {
-	case closer := <-hijacked:
+//	select {
+//	case closer := <-hijacked:
 		// Make sure that the hijack gets closed when returning (results
 		// in closing the hijack chan and freeing server's goroutines)
-		if closer != nil {
-			defer closer.Close()
-		}
-	case err := <-errCh:
-		if err != nil {
-			logrus.Debugf("Error hijack: %s", err)
-			return err
-		}
-	}
+//		if closer != nil {
+//			defer closer.Close()
+//		}
+//	case err := <-errCh:
+//		if err != nil {
+//			logrus.Debugf("Error hijack: %s", err)
+//			return err
+//		}
+//	}
 
 	defer func() {
 		if *flAutoRemove {

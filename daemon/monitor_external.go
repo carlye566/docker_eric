@@ -85,6 +85,7 @@ func newMonitorCommand(containerId, containerRoot string) *exec.Cmd {
 		Args: args,
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
+		Env: os.Environ(),
 	}
 }
 
@@ -139,6 +140,6 @@ func (daemon *Daemon) ContainerMonitorStop(id string, status StopStatus) error {
 	return nil
 }
 
-func (daemon *Daemon) isBuiltinMonitor() bool {
-	return daemon.config.monitor == "builtin"
+func (daemon *Daemon) EnableHotRestart() bool {
+	return daemon.config.monitor != "builtin"
 }
