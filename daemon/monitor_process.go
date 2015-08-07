@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"net/http"
 	"encoding/json"
+	"io"
 )
 
 const (
@@ -112,6 +113,12 @@ func (monitor DockerMonitor) Start() {
 		logrus.Infof("wait for attach before")
 		<-monitor.WaitAttach
 		logrus.Infof("wait for attach end")
+	}
+	//TODO address this to docker community
+	if container.Config.OpenStdin {
+		container.stdin, container.stdinPipe = io.Pipe()
+	} else {
+		container.stdinPipe = ioutils.NopWriteCloser(ioutil.Discard) // Silently drop stdin
 	}
 	if err := container.startLogging(); err != nil {
 		fail("start logging failed %v", err)
