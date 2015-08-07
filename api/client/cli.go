@@ -18,7 +18,6 @@ import (
 	"github.com/docker/docker/pkg/term"
 	"github.com/docker/docker/utils"
 	_ "net/http/pprof"
-	"github.com/Sirupsen/logrus"
 )
 
 // DockerCli represents the docker command line client.
@@ -218,9 +217,6 @@ func NewDockerCli(in io.ReadCloser, out, err io.Writer, keyFile string, proto, a
 	if e != nil {
 		fmt.Fprintf(err, "WARNING: Error loading config file:%v\n", e)
 	}
-	go func() {
-		logrus.Println(http.ListenAndServe("localhost:4000", nil))
-	}()
 
 	return &DockerCli{
 		proto:         proto,
