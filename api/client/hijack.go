@@ -180,6 +180,7 @@ func (cli *DockerCli) hijack(method, path string, setRawTerminal bool, in io.Rea
 		protoAddrParts := strings.SplitN(serverResp.Header.Get("Location"), "://", 2)
 		logrus.Infof("hijack redirect to %v", protoAddrParts)
 		if protoAddrParts[0] == "unix" {
+			//TODO needs to address this in docker daemon 
 			for {
 				if _, err := os.Stat(protoAddrParts[1]); err != nil && os.IsNotExist(err) {
 					logrus.Infof("wait %s %v", protoAddrParts[1], err)

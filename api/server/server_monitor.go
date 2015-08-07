@@ -104,6 +104,8 @@ func (s *MonitorServer) postContainersAttach(version version.Version, w http.Res
 	if err != nil {
 		return err
 	}
+	close(s.monitor.WaitAttach)
+	logrus.Debugf("hijack complete, closed waitattach")
 	defer closeStreams(inStream, outStream)
 
 	if _, ok := r.Header["Upgrade"]; ok {

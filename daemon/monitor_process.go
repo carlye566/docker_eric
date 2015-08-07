@@ -37,6 +37,7 @@ const (
 
 type DockerMonitor struct {
 	commonMonitor
+	WaitAttach chan struct{}
 }
 
 type StartStatus struct {
@@ -58,6 +59,7 @@ func newDockerMonitor(container *Container, policy runconfig.RestartPolicy) *Doc
 			stopChan:         make(chan struct{}),
 			startSignal:      make(chan struct{}),
 		},
+		WaitAttach:           make(chan struct{}),
 	}
 }
 
@@ -105,6 +107,11 @@ func (monitor DockerMonitor) Start() {
 	driver, err := native.NewDriver(execRoot, sysInitPath, []string{})
 	if err != nil {
 		fail("new native driver err %v", err)
+	}
+	if container.Config.Attach() {
+		logrus.Infof("wait for attach before")
+		<-monitor.WaitAttach
+		logrus.Infof("wait for attach end")
 	}
 	if err := container.startLogging(); err != nil {
 		fail("start logging failed %v", err)

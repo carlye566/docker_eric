@@ -187,3 +187,7 @@ func DecodeContainerConfig(src io.Reader) (*Config, *HostConfig, error) {
 
 	return w.Config, w.GetHostConfig(), nil
 }
+
+func (c *Config) Attach() bool {
+	return c.AttachStderr || c.AttachStdout || c.AttachStdin
+}

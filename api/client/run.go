@@ -136,7 +136,7 @@ func (cli *DockerCli) CmdRun(args ...string) error {
 			fmt.Fprintln(cli.err, "Hijack did not finish (chan still open)")
 		}
 	}()
-	if config.AttachStdin || config.AttachStdout || config.AttachStderr {
+	if config.Attach() {
 		var (
 			out, stderr io.Writer
 			in          io.ReadCloser
@@ -166,19 +166,6 @@ func (cli *DockerCli) CmdRun(args ...string) error {
 		close(hijacked)
 	}
 	// Acknowledge the hijack before starting
-//	select {
-//	case closer := <-hijacked:
-		// Make sure that the hijack gets closed when returning (results
-		// in closing the hijack chan and freeing server's goroutines)
-//		if closer != nil {
-//			defer closer.Close()
-//		}
-//	case err := <-errCh:
-//		if err != nil {
-//			logrus.Debugf("Error hijack: %s", err)
-//			return err
-//		}
-//	}
 
 	defer func() {
 		if *flAutoRemove {
