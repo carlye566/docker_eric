@@ -185,7 +185,6 @@ func (cli *DockerCli) hijack(method, path string, setRawTerminal bool, in io.Rea
 					logrus.Infof("wait %s %v", protoAddrParts[1], err)
 					time.Sleep(time.Second)
 				} else {
-					time.Sleep(time.Second)
 					break
 				}
 			}

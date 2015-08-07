@@ -199,7 +199,10 @@ func (cli *DockerCli) CmdRun(args ...string) error {
 		}
 	}
 	//TODO fix attach mode
-	logrus.Infof("before errch")
+	closer := <-hijacked
+	if closer != nil {
+		defer closer.Close()
+	}
 
 	if errCh != nil {
 		if err := <-errCh; err != nil {
@@ -207,7 +210,6 @@ func (cli *DockerCli) CmdRun(args ...string) error {
 			return err
 		}
 	}
-	logrus.Infof("end errch")
 
 	// Detached mode: wait for the id to be displayed and return.
 	if !config.AttachStdout && !config.AttachStderr {
