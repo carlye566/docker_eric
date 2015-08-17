@@ -52,7 +52,7 @@ func (m externalMonitor) Close() error {
 }
 
 func (m externalMonitor) Start() error {
-	exec := newMonitorCommand(m.container.ID, m.container.root)
+	exec := newMonitorCommand(m.container.ID, m.container.root, m.container.daemon.config.Host)
 	err := exec.Start()
 	if err != nil {
 		logrus.Errorf("%s", err)
@@ -74,11 +74,12 @@ func (m externalMonitor) Start() error {
 func (m externalMonitor) callback(processConfig *execdriver.ProcessConfig, pid int) {
 }
 
-func newMonitorCommand(containerId, containerRoot string) *exec.Cmd {
+func newMonitorCommand(containerId, containerRoot, daemonHost string) *exec.Cmd {
 	args := []string{
-		docker_monitor,
+		dockerMonitor,
 		containerId,
 		containerRoot[0:strings.LastIndex(containerRoot, "/")], // /var/lib/docker/containers
+		daemonHost,
 	}
 	return &exec.Cmd{
 		Path: reexec.Self(),

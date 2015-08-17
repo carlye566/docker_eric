@@ -5,8 +5,10 @@ import (
 	"path/filepath"
 	"fmt"
 	"time"
+	"strings"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/docker/docker/opts"
 	"github.com/docker/docker/runconfig"
 	"github.com/docker/docker/autogen/dockerversion"
 	"github.com/docker/docker/pkg/ioutils"
@@ -15,25 +17,30 @@ import (
 	"github.com/docker/docker/daemon/execdriver"
 	"strconv"
 	"bytes"
+	"net"
 	"net/http"
+	"net/http/httputil"
 	"encoding/json"
 	"io"
 )
 
 const (
-	docker_monitor = "docker_monitor"
-	monitor_pid_file = "monitor.pid"
-	start_status_file = "start_status"
-	stop_status_file = "stop_status"
+	dockerMonitor = "docker_monitor"
+	monitorPidFile = "monitor.pid"
+	startStatusFile = "start_status"
+	stopStatusFile = "stop_status"
 
 // TODO this needs to be addressed
 	root = "/var/run/docker"
 
-	http_retry_times = 5
-	http_retry_interval_second = 3
+	httpRetryTimes = 5
+	httpRetryIntervalSecond = 3
+)
 
-	notify_start_url = "http://127.0.0.1:2375/monitor/%s/start"
-	notify_stop_url = "http://127.0.0.1:2375/monitor/%s/stop"
+var (
+	daemonHost = fmt.Sprintf("unix://%s", opts.DefaultUnixSocket)
+	notifyStartPath = "/monitor/%s/start"
+	notifyStopPath = "/monitor/%s/stop"
 )
 
 type DockerMonitor struct {
@@ -69,6 +76,7 @@ func InitDockerMonitor() *DockerMonitor {
 		containerId = os.Args[1]
 		root = os.Args[2]
 	)
+	daemonHost = os.Args[3]
 	container := &Container{
 		CommonContainer: CommonContainer{
 			ID:    containerId,
@@ -81,7 +89,7 @@ func InitDockerMonitor() *DockerMonitor {
 			},
 		},
 	}
-	if err := dumpToDisk(container.root, monitor_pid_file, []byte(strconv.Itoa(os.Getpid()))); err != nil {
+	if err := dumpToDisk(container.root, monitorPidFile, []byte(strconv.Itoa(os.Getpid()))); err != nil {
 		fail("Error dump pid %v", err)
 	}
 	if err := container.FromDisk(); err != nil {
@@ -95,6 +103,7 @@ func InitDockerMonitor() *DockerMonitor {
 	if err := container.readCommand(); err != nil {
 		fail("Error load command %v", err)
 	}
+
 	//TODO env in ProcessConfig.execCmd should be changed to ProcessConfig.env
 	env := container.createDaemonEnvironment([]string{})
 	container.command.ProcessConfig.Env = env
@@ -166,7 +175,8 @@ func (m DockerMonitor) notifyStart(status StartStatus) error {
 	if err != nil {
 		return err
 	}
-	return m.notifyDaemon(notify_start_url, start_status_file, d)
+	logrus.Debugf("notify_start_url = %s%s", daemonHost, notifyStartPath)
+	return m.notifyDaemon(daemonHost, notifyStartPath, startStatusFile, d)
 }
 
 func (m DockerMonitor) notifyStop(status StopStatus) error {
@@ -174,23 +184,23 @@ func (m DockerMonitor) notifyStop(status StopStatus) error {
 	if err != nil {
 		return err
 	}
-	return m.notifyDaemon(notify_stop_url, stop_status_file, d)
+	return m.notifyDaemon(daemonHost, notifyStopPath, stopStatusFile, d)
 }
 
-func (m DockerMonitor) notifyDaemon(url, file string, d []byte) error {
+func (m DockerMonitor) notifyDaemon(host, path, file string, d []byte) error {
 	if err := dumpToDisk(m.container.root, file, d); err != nil {
 		return err
 	}
-	for i := 0; i < http_retry_times; i++ {
-		if err := httpNotify(url, m.container.ID, d); err != nil {
+	for i := 0; i < httpRetryTimes; i++ {
+		if err := httpNotify(host, path, m.container.ID, d); err != nil {
 			logrus.Infof("http notify daemon %s failed %v, retry %d times", string(d), err, i)
-			if i == http_retry_times-1 {
+			if i == httpRetryTimes - 1 {
 				return err
 			}
 		} else {
 			break
 		}
-		time.Sleep(http_retry_interval_second * time.Second)
+		time.Sleep(httpRetryIntervalSecond * time.Second)
 	}
 	return nil
 }
@@ -201,15 +211,24 @@ func (m DockerMonitor) Container() *Container {
 	return m.container
 }
 
-func httpNotify(url, cid string, data []byte) error {
+func httpNotify(host, path, cid string, data []byte) error {
+	protoAddrParts := strings.SplitN(host, "://", 2)
 	contentReader := bytes.NewReader(data)
-	req, err := http.NewRequest("POST", fmt.Sprintf(url, cid), contentReader)
+	req, err := http.NewRequest("POST", fmt.Sprintf(path, cid), contentReader)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	req.URL.Host = protoAddrParts[1]
+
+	dial, err := net.Dial(protoAddrParts[0], protoAddrParts[1])
+	if err != nil {
+		return err
+	}
+	clientconn := httputil.NewClientConn(dial, nil)
+	defer clientconn.Close()
+	resp, err := clientconn.Do(req)
+
 	if err != nil {
 		return  err
 	}
@@ -221,11 +240,11 @@ func httpNotify(url, cid string, data []byte) error {
 }
 
 func (container *Container) startStatusPath() string {
-	return filepath.Join(container.root, start_status_file)
+	return filepath.Join(container.root, startStatusFile)
 }
 
 func (container *Container) stopStatusPath() string {
-	return filepath.Join(container.root, stop_status_file)
+	return filepath.Join(container.root, stopStatusFile)
 }
 
 func (container *Container) loadStopStatus() (error, StopStatus) {

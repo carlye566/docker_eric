@@ -145,6 +145,10 @@ func mainDaemon() {
 		logrus.Fatal(err)
 	}
 	daemonCfg.TrustKeyPath = *flTrustKey
+	if 0 < len(flHosts) {
+		logrus.Infof("set daemonCfg.NotifyHost = flHosts[0] = %s", flHosts[0])
+		daemonCfg.Host = flHosts[0]
+	}
 
 	registryService := registry.NewService(registryCfg)
 	d, err := daemon.NewDaemon(daemonCfg, registryService)
