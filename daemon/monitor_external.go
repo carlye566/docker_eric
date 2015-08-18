@@ -80,6 +80,7 @@ func newMonitorCommand(containerId, containerRoot, daemonHost string) *exec.Cmd 
 		containerId,
 		containerRoot[0:strings.LastIndex(containerRoot, "/")], // /var/lib/docker/containers
 		daemonHost,
+		reexec.Self(),
 	}
 	return &exec.Cmd{
 		Path: reexec.Self(),

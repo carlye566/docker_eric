@@ -19,8 +19,7 @@ func Register(name string, initializer func()) {
 	registeredInitializers[name] = initializer
 }
 
-func RegisterSelf(name string, initializer func(), self string) {
-	Register(name, initializer)
+func SetFakeSelf(self string) {
 	fakeSelf = self
 }
 

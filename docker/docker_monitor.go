@@ -14,19 +14,19 @@ import (
 
 const (
 // TODO this needs to be addressed
-	fakeSelf = "/usr/bin/docker"
-	docker_monitor = "docker_monitor"
+	dockerMonitor = "docker_monitor"
 	socketGroup = "docker"
 	MonitorSockDir = "/var/run"
 )
 
 func init() {
-	reexec.RegisterSelf(docker_monitor, mainDockerMonitor, fakeSelf)
+	reexec.Register(dockerMonitor, mainDockerMonitor)
 }
 
 func mainDockerMonitor() {
 	setLogLevel(logrus.DebugLevel)
 	logrus.Debugf("Starting docker monitor %v", os.Args)
+	reexec.SetFakeSelf(os.Args[4])
 	go func() {
 		logrus.Println(http.ListenAndServe("localhost:6000", nil))
 	}()
