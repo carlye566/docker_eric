@@ -4,6 +4,7 @@ package daemon
 
 import (
 	"fmt"
+        "encoding/json"
 	"io/ioutil"
 	"net"
 	"os"
@@ -122,10 +123,12 @@ func (container *Container) createDaemonEnvironment(linkedEnv []string) []string
 	if container.Config.Domainname != "" {
 		fullHostname = fmt.Sprintf("%s.%s", fullHostname, container.Config.Domainname)
 	}
+        ports,_ := json.Marshal(container.NetworkSettings.Ports)
 	// Setup environment
 	env := []string{
 		"PATH=" + DefaultPathEnv,
 		"HOSTNAME=" + fullHostname,
+		"GAIA_PORT_MAPPING=" + string(ports),
 		// Note: we don't set HOME here because it'll get autoset intelligently
 		// based on the value of USER inside dockerinit, but only if it isn't
 		// set already (ie, that can be overridden by setting HOME via -e or ENV
