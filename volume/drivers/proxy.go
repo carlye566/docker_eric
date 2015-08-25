@@ -1,74 +1,174 @@
+// generated code - DO NOT EDIT
+
 package volumedrivers
 
-import "fmt"
+import (
+	"errors"
+	"strings"
+	"github.com/docker/docker/volume"
+	"github.com/Sirupsen/logrus"
+	"runtime/debug"
+)
 
-// currently created by hand. generation tool would generate this like:
-// $ rpc-gen volume/drivers/api.go VolumeDriver > volume/drivers/proxy.go
-
-type volumeDriverRequest struct {
-	Name string
-}
-
-type volumeDriverResponse struct {
-	Mountpoint string `json:",ommitempty"`
-	Err        error  `json:",ommitempty"`
+type client interface {
+	Call(string, interface{}, interface{}) error
 }
 
 type volumeDriverProxy struct {
-	c client
+	client
 }
 
-func (pp *volumeDriverProxy) Create(name string) error {
-	args := volumeDriverRequest{name}
-	var ret volumeDriverResponse
-	err := pp.c.Call("VolumeDriver.Create", args, &ret)
-	if err != nil {
-		return pp.fmtError(name, err)
-	}
-	return pp.fmtError(name, ret.Err)
+type volumeDriverProxyCreateRequest struct {
+	Name string
+	Size string
 }
 
-func (pp *volumeDriverProxy) Remove(name string) error {
-	args := volumeDriverRequest{name}
-	var ret volumeDriverResponse
-	err := pp.c.Call("VolumeDriver.Remove", args, &ret)
-	if err != nil {
-		return pp.fmtError(name, err)
-	}
-	return pp.fmtError(name, ret.Err)
+type volumeDriverProxyCreateResponse struct {
+	Err string
 }
 
-func (pp *volumeDriverProxy) Path(name string) (string, error) {
-	args := volumeDriverRequest{name}
-	var ret volumeDriverResponse
-	if err := pp.c.Call("VolumeDriver.Path", args, &ret); err != nil {
-		return "", pp.fmtError(name, err)
+func (pp *volumeDriverProxy) Create(name string) (err error) {
+	var (
+		req volumeDriverProxyCreateRequest
+		ret volumeDriverProxyCreateResponse
+	)
+
+	nm := name
+	if strings.Contains(nm, volume.DefaultCephRbdSizeTag) {
+		createInfos := strings.Split(nm, volume.DefaultCephRbdSizeTag)
+		req.Name = createInfos[0]
+		req.Size = createInfos[1]
+		logrus.Infof("create volume %s with tag size %s", createInfos[0], createInfos[1])
+	} else {
+		req.Name = name
+		req.Size = volume.DefaultCephRbdSize
+		logrus.Infof("create volume %s without tag size %s", name, volume.DefaultCephRbdSize)
 	}
-	return ret.Mountpoint, pp.fmtError(name, ret.Err)
+
+	if err = pp.Call("VolumeDriver.Create", req, &ret); err != nil {
+		return
+	}
+
+	if ret.Err != "" {
+		err = errors.New(ret.Err)
+	}
+
+	return
 }
 
-func (pp *volumeDriverProxy) Mount(name string) (string, error) {
-	args := volumeDriverRequest{name}
-	var ret volumeDriverResponse
-	if err := pp.c.Call("VolumeDriver.Mount", args, &ret); err != nil {
-		return "", pp.fmtError(name, err)
-	}
-	return ret.Mountpoint, pp.fmtError(name, ret.Err)
+type volumeDriverProxyRemoveRequest struct {
+	Name string
 }
 
-func (pp *volumeDriverProxy) Unmount(name string) error {
-	args := volumeDriverRequest{name}
-	var ret volumeDriverResponse
-	err := pp.c.Call("VolumeDriver.Unmount", args, &ret)
-	if err != nil {
-		return pp.fmtError(name, err)
-	}
-	return pp.fmtError(name, ret.Err)
+type volumeDriverProxyRemoveResponse struct {
+	Err string
 }
 
-func (pp *volumeDriverProxy) fmtError(name string, err error) error {
-	if err == nil {
-		return nil
+func (pp *volumeDriverProxy) Remove(name string) (err error) {
+	var (
+		req volumeDriverProxyRemoveRequest
+		ret volumeDriverProxyRemoveResponse
+	)
+
+	debug.PrintStack()
+	name = volume.FiterCephSizeTagofVolumeName(name)
+	req.Name = name
+	if err = pp.Call("VolumeDriver.Remove", req, &ret); err != nil {
+		return
 	}
-	return fmt.Errorf("External volume driver request failed for %s: %v", name, err)
+
+	if ret.Err != "" {
+		err = errors.New(ret.Err)
+	}
+
+	return
+}
+
+type volumeDriverProxyPathRequest struct {
+	Name string
+}
+
+type volumeDriverProxyPathResponse struct {
+	Mountpoint string
+	Err        string
+}
+
+func (pp *volumeDriverProxy) Path(name string) (mountpoint string, err error) {
+	var (
+		req volumeDriverProxyPathRequest
+		ret volumeDriverProxyPathResponse
+	)
+
+	name = volume.FiterCephSizeTagofVolumeName(name)
+	req.Name = name
+	if err = pp.Call("VolumeDriver.Path", req, &ret); err != nil {
+		return
+	}
+
+	mountpoint = ret.Mountpoint
+
+	if ret.Err != "" {
+		err = errors.New(ret.Err)
+	}
+
+	return
+}
+
+type volumeDriverProxyMountRequest struct {
+	Name string
+}
+
+type volumeDriverProxyMountResponse struct {
+	Mountpoint string
+	Err        string
+}
+
+func (pp *volumeDriverProxy) Mount(name string) (mountpoint string, err error) {
+	var (
+		req volumeDriverProxyMountRequest
+		ret volumeDriverProxyMountResponse
+	)
+
+	debug.PrintStack()
+	name = volume.FiterCephSizeTagofVolumeName(name)
+	req.Name = name
+	if err = pp.Call("VolumeDriver.Mount", req, &ret); err != nil {
+		return
+	}
+
+	mountpoint = ret.Mountpoint
+
+	if ret.Err != "" {
+		err = errors.New(ret.Err)
+	}
+
+	return
+}
+
+type volumeDriverProxyUnmountRequest struct {
+	Name string
+}
+
+type volumeDriverProxyUnmountResponse struct {
+	Err string
+}
+
+func (pp *volumeDriverProxy) Unmount(name string) (err error) {
+	var (
+		req volumeDriverProxyUnmountRequest
+		ret volumeDriverProxyUnmountResponse
+	)
+
+	debug.PrintStack()
+	name = volume.FiterCephSizeTagofVolumeName(name)
+	req.Name = name
+	if err = pp.Call("VolumeDriver.Unmount", req, &ret); err != nil {
+		return
+	}
+
+	if ret.Err != "" {
+		err = errors.New(ret.Err)
+	}
+
+	return
 }
