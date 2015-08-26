@@ -141,6 +141,7 @@ func (daemon *Daemon) Create(config *runconfig.Config, hostConfig *runconfig.Hos
 		return nil, nil, err
 	}
 	container.LogEvent("create")
+	daemon.graph.UpdateImageLastUseTime(img)
 	return container, warnings, nil
 }
 

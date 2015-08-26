@@ -3,6 +3,7 @@
 package graph
 
 import (
+	"time"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -83,6 +84,13 @@ func createRootFilesystemInDriver(graph *Graph, img *image.Image, layerData arch
 
 func (graph *Graph) restoreBaseImages() ([]string, error) {
 	return nil, nil
+}
+
+func (graph *Graph) UpdateImageLastUseTime(img *image.Image) {
+	img.LastUseTime = time.Now().UTC()
+	if err := graph.storeImage(img, nil, graph.imageRoot(img.ID)); err != nil {
+		logrus.Errorf("Unable to update img.LastUseTime, img id %s", img.ID, err)
+	}
 }
 
 // storeImage stores file system layer data for the given image to the

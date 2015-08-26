@@ -36,6 +36,7 @@ func (s *TagStore) Lookup(name string) (*types.ImageInspect, error) {
 		Parent:          image.Parent,
 		Comment:         image.Comment,
 		Created:         image.Created.Format(time.RFC3339Nano),
+		LastUseTime:     image.LastUseTime,
 		Container:       image.Container,
 		ContainerConfig: &image.ContainerConfig,
 		DockerVersion:   image.DockerVersion,

@@ -201,6 +201,7 @@ func (graph *Graph) Create(layerData archive.ArchiveReader, containerID, contain
 		ID:            stringid.GenerateRandomID(),
 		Comment:       comment,
 		Created:       time.Now().UTC(),
+		LastUseTime:   time.Now().UTC(),
 		DockerVersion: dockerversion.VERSION,
 		Author:        author,
 		Config:        config,
@@ -272,6 +273,9 @@ func (graph *Graph) Register(img *image.Image, layerData archive.ArchiveReader) 
 	}
 
 	// Apply the diff/layer
+	if img.LastUseTime.IsZero() {
+		img.LastUseTime = time.Now().UTC()
+	}
 	if err := graph.storeImage(img, layerData, tmp); err != nil {
 		return err
 	}
