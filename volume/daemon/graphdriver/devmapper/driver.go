@@ -188,3 +188,8 @@ func (d *Driver) Put(id string) error {
 func (d *Driver) Exists(id string) bool {
 	return d.DeviceSet.HasDevice(id)
 }
+
+func (d *Driver) DataUsePercent() float64 {
+	s := d.DeviceSet.Status()
+	return float64(s.Data.Used)/float64(s.Data.Total)
+}

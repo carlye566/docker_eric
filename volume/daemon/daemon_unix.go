@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"strconv"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/autogen/dockerversion"
@@ -532,4 +533,12 @@ func (daemon *Daemon) RegisterLinks(container *Container, hostConfig *runconfig.
 	}
 
 	return nil
+}
+
+func (daemon *Daemon) startImageClean(cleanInterval int64, retainPer float64) {
+        if err := daemon.ImageClean(strconv.FormatInt(cleanInterval, 10),
+                strconv.FormatFloat(retainPer, 'f', 3, 64));
+                err != nil {
+                logrus.Errorf("Clean images failed", err)
+        }
 }

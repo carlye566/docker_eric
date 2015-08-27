@@ -15,6 +15,9 @@ const (
 // common across platforms.
 type CommonConfig struct {
 	AutoRestart    bool
+	AutoClean      bool
+	CleanInterval  int64
+	MaxDataPer     float64
 	Bridge         bridgeConfig // Bridge holds bridge network specific configuration.
 	Context        map[string][]string
 	CorsHeaders    string
@@ -48,6 +51,9 @@ func (config *Config) InstallCommonFlags(cmd *flag.FlagSet, usageFn func(string)
 	cmd.StringVar(&config.Root, []string{"g", "-graph"}, defaultGraph, usageFn("Root of the Docker runtime"))
 	cmd.StringVar(&config.ExecRoot, []string{"-exec-root"}, "/var/run/docker", usageFn("Root of the Docker execdriver"))
 	cmd.BoolVar(&config.AutoRestart, []string{"#r", "#-restart"}, true, usageFn("--restart on the daemon has been deprecated in favor of --restart policies on docker run"))
+	cmd.BoolVar(&config.AutoClean, []string{"-clean-enabled"}, false, "Enable Docker daemon to clean images not used for a long time")
+	cmd.Int64Var(&config.CleanInterval, []string{"-clean-interval-sec"}, 5 * 60, "Set the interval for cleaning images")
+	cmd.Float64Var(&config.MaxDataPer, []string{"-max-data-per"}, 0.8, "Set the max used percent for data storage driver")
 	cmd.StringVar(&config.GraphDriver, []string{"s", "-storage-driver"}, "", usageFn("Storage driver to use"))
 	cmd.StringVar(&config.ExecDriver, []string{"e", "-exec-driver"}, defaultExec, usageFn("Exec driver to use"))
 	cmd.IntVar(&config.Mtu, []string{"#mtu", "-mtu"}, 0, usageFn("Set the containers network MTU"))
