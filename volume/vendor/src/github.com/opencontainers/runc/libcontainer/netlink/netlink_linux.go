@@ -999,7 +999,7 @@ outer:
 			}
 			for _, attr := range attrs {
 				switch attr.Attr.Type {
-				case syscall.RTA_DST:
+				case syscall.RTA_DST, syscall.RTA_GATEWAY:
 					ip := attr.Value
 					r.IPNet = &net.IPNet{
 						IP:   ip,

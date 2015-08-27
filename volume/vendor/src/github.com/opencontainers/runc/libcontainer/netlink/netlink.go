@@ -18,7 +18,7 @@ var (
 
 // A Route is a subnet associated with the interface to reach it.
 type Route struct {
-	*net.IPNet
+	*net.IPNet  // GATEWAY ip if default route, dst ip otherwise
 	Iface   *net.Interface
 	Default bool
 }
