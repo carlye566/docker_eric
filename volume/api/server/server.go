@@ -1575,7 +1575,7 @@ func makeHttpHandler(logging bool, localMethod string, localRoute string, handle
 		// log the request
 		logrus.Debugf("Calling %s %s", localMethod, localRoute)
 
-		if logging {
+		if logging && localRoute != "/containers/json" && localRoute != "/containers/{name:.*}/json" {
 			logrus.Infof("%s %s", r.Method, r.RequestURI)
 		}
 

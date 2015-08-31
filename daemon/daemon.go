@@ -483,6 +483,7 @@ func (daemon *Daemon) newContainer(name string, config *runconfig.Config, imgID 
 		CommonContainer: base,
 	}
 
+	logrus.Infof("Add new container id %s, name %s", container.ID, container.Name)
 	return container, err
 }
 
