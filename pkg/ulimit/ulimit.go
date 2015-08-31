@@ -78,7 +78,7 @@ func Parse(val string) (*Ulimit, error) {
 
 	soft, err := strconv.ParseInt(limitVals[0], 10, 64)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error parse limitVals[0] as int: %s", err.Error())
 	}
 
 	hard := soft // in case no hard was set
