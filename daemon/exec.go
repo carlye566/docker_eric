@@ -29,6 +29,8 @@ type execConfig struct {
 	OpenStdout bool
 	Container  *Container
 	canRemove  bool
+
+	waitStart chan struct{}
 }
 
 type execStore struct {
@@ -70,6 +72,11 @@ func (e *execStore) List() []string {
 }
 
 func (execConfig *execConfig) Resize(h, w int) error {
+	select {
+        case <-execConfig.waitStart:
+        case <-time.After(time.Second):
+                return fmt.Errorf("Exec %s is not running, so it can not be resized.", execConfig.ID)
+        }
 	return execConfig.ProcessConfig.Terminal.Resize(h, w)
 }
 
@@ -146,6 +153,7 @@ func (d *Daemon) ContainerExecCreate(config *runconfig.ExecConfig) (string, erro
 		ProcessConfig: processConfig,
 		Container:     container,
 		Running:       false,
+		waitStart:     make(chan struct{}),
 	}
 
 	d.registerExecCommand(execConfig)
