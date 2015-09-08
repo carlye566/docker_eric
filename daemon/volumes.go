@@ -26,6 +26,7 @@ type mountPoint struct {
 	Name        string
 	Destination string
 	Driver      string
+	Size        string
 	RW          bool
 	Volume      volume.Volume `json:"-"`
 	Source      string
@@ -194,7 +195,9 @@ func (daemon *Daemon) registerMountPoints(container *Container, hostConfig *runc
 			}
 
 			if len(cp.Source) == 0 {
-				v, err := createVolume(cp.Name, cp.Driver)
+				logrus.Infof("volume driver name %s", container.Config.VolumeDriver)
+				volumeName := volume.GetVirtualNameForCephDriver(container.Config.VolumeDriver, cp.Name, container.Config.VolumeSize)
+				v, err := createVolume(volumeName, cp.Driver)
 				if err != nil {
 					return err
 				}
@@ -219,7 +222,9 @@ func (daemon *Daemon) registerMountPoints(container *Container, hostConfig *runc
 
 		if len(bind.Name) > 0 && len(bind.Driver) > 0 {
 			// create the volume
-			v, err := createVolume(bind.Name, bind.Driver)
+			logrus.Infof("volume driver name %s", container.Config.VolumeDriver)
+                        volumeName := volume.GetVirtualNameForCephDriver(container.Config.VolumeDriver, bind.Name, container.Config.VolumeSize)
+			v, err := createVolume(volumeName, bind.Driver)
 			if err != nil {
 				return err
 			}

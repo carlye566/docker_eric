@@ -35,6 +35,7 @@ type validateNM struct {
 	flPublishAll   *bool
 	flExpose       opts.ListOpts
 	flVolumeDriver string
+	flVolumeSize   string
 }
 
 func Parse(cmd *flag.FlagSet, args []string) (*Config, *HostConfig, *flag.FlagSet, error) {
@@ -94,6 +95,7 @@ func Parse(cmd *flag.FlagSet, args []string) (*Config, *HostConfig, *flag.FlagSe
 		flLoggingDriver   = cmd.String([]string{"-log-driver"}, "", "Logging driver for container")
 		flCgroupParent    = cmd.String([]string{"-cgroup-parent"}, "", "Optional parent cgroup for the container")
 		flVolumeDriver    = cmd.String([]string{"-volume-driver"}, "", "Optional volume driver for the container")
+		flVolumeSize      = cmd.String([]string{"-volume-size"}, "", "Optional volume size for special driver")
 	)
 
 	cmd.Var(&flAttach, []string{"a", "-attach"}, "Attach to STDIN, STDOUT or STDERR")
@@ -336,6 +338,7 @@ func Parse(cmd *flag.FlagSet, args []string) (*Config, *HostConfig, *flag.FlagSe
 		WorkingDir:      *flWorkingDir,
 		Labels:          convertKVStringsToMap(labels),
 		VolumeDriver:    *flVolumeDriver,
+		VolumeSize:      *flVolumeSize,
 	}
 
 	hostConfig := &HostConfig{

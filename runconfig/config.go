@@ -131,6 +131,7 @@ type Config struct {
 	Image           string // Name of the image as it was passed by the operator (eg. could be symbolic)
 	Volumes         map[string]struct{}
 	VolumeDriver    string
+	VolumeSize      string
 	WorkingDir      string
 	Entrypoint      *Entrypoint
 	NetworkDisabled bool

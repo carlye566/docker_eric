@@ -9,10 +9,12 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"syscall"
 	"sync"
 
 	"github.com/opencontainers/runc/libcontainer/cgroups"
 	"github.com/opencontainers/runc/libcontainer/configs"
+	log "github.com/Sirupsen/logrus"
 )
 
 var (
@@ -53,6 +55,23 @@ type Manager struct {
 // The absolute path to the root of the cgroup hierarchies.
 var cgroupRootLock sync.Mutex
 var cgroupRoot string
+var dockerGid int = 0
+var filePerm = os.FileMode(0664)
+var dirPerm = os.FileMode(0775)
+var once sync.Once
+
+func getDockerGid() {
+	once.Do(func() {
+		info, err := os.Stat("/var/run/docker.sock")
+		log.Infof("get docker gid")
+		if info != nil {
+			dockerGid = int(info.Sys().(*syscall.Stat_t).Gid)
+			log.Infof("docker gid %d", dockerGid)
+		} else {
+			log.Errorf("failed to get docker gid, %v", err)
+		}
+	})
+}
 
 // Gets the cgroupRoot.
 func getCgroupRoot() (string, error) {
@@ -78,6 +97,7 @@ func getCgroupRoot() (string, error) {
 
 type data struct {
 	root   string
+	dockerRoot string  // /${root}/${cgroup} == /${root}/cpu/${dockerRoot}/${ID}
 	cgroup string
 	c      *configs.Cgroup
 	pid    int
@@ -229,6 +249,7 @@ func getCgroupData(c *configs.Cgroup, pid int) (*data, error) {
 
 	return &data{
 		root:   root,
+		dockerRoot: c.Parent,
 		cgroup: cgroup,
 		c:      c,
 		pid:    pid,
@@ -268,14 +289,32 @@ func (raw *data) path(subsystem string) (string, error) {
 }
 
 func (raw *data) join(subsystem string) (string, error) {
+	getDockerGid()
+	oldMask := syscall.Umask(0)
+	defer syscall.Umask(oldMask)
 	path, err := raw.path(subsystem)
 	if err != nil {
 		return "", err
 	}
-	if err := os.MkdirAll(path, 0755); err != nil && !os.IsExist(err) {
+	if err := os.MkdirAll(path, dirPerm); err != nil && !os.IsExist(err) {
+		log.Errorf("err %v", err)
 		return "", err
 	}
+	subsystemRoot := filepath.Join(raw.root, subsystem, raw.dockerRoot)
+	if err := ensureSubsystemRoot(subsystemRoot); err != nil {
+		log.Errorf("err %v", err)
+		return "", err
+	}
+	if err := os.Chown(path, 0, dockerGid); err != nil {
+		log.Errorf("err %v", err)
+		return "", err
+	}
+	if err := ensureFiles(path); err != nil {
+		log.Errorf("err %v", err)
+ 		return "", err
+ 	}
 	if err := writeFile(path, CgroupProcesses, strconv.Itoa(raw.pid)); err != nil {
+		log.Errorf("err %v", err)
 		return "", err
 	}
 	return path, nil
@@ -287,12 +326,73 @@ func writeFile(dir, file, data string) error {
 	if dir == "" {
 		return fmt.Errorf("no such directory for %s.", file)
 	}
-	return ioutil.WriteFile(filepath.Join(dir, file), []byte(data), 0700)
+	getDockerGid()
+	oldMask := syscall.Umask(0)
+	defer syscall.Umask(oldMask)
+	fileName := filepath.Join(dir, file)
+	if err := ioutil.WriteFile(fileName, []byte(data), filePerm); err != nil {
+		log.Errorf("err %v", err)
+		return err
+	}
+	if err := os.Chown(fileName, 0, dockerGid); err != nil {
+		log.Errorf("err %v", err)
+		return err
+	}
+	return nil
 }
 
 func readFile(dir, file string) (string, error) {
 	data, err := ioutil.ReadFile(filepath.Join(dir, file))
 	return string(data), err
+}
+
+//ensure /cgroupdir/${subsystem}/docker is owner by docker group
+func ensureSubsystemRoot(subsystemRoot string) error {
+	info, _ := os.Stat(subsystemRoot)
+	expected := true
+	if int(info.Sys().(*syscall.Stat_t).Gid) != dockerGid {
+		if err := os.Chown(subsystemRoot, 0, dockerGid); err != nil {
+			log.Errorf("chown file %s err %v", subsystemRoot, err)
+			return err
+		}
+		expected = false
+	}
+	if uint32(info.Mode()) != uint32(dirPerm) {
+		if err := os.Chmod(subsystemRoot, dirPerm); err != nil {
+			log.Errorf("chmod file %s err %v", subsystemRoot, err)
+			return err
+		}
+		expected = false
+	}
+	if !expected {
+		if err := ensureFiles(subsystemRoot); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+//ensure files under ${dir} is owner by docker group and the permission is expected
+func ensureFiles(dir string) error {
+	files, _:= ioutil.ReadDir(dir)
+	var perm os.FileMode = filePerm
+	for _, f := range files {
+		if f.IsDir() {
+			perm = dirPerm
+		} else {
+			perm = filePerm
+		}
+		fileName := filepath.Join(dir, f.Name())
+		if err := os.Chown(fileName, 0, dockerGid); err != nil {
+			log.Errorf("chown file %s err %v", fileName, err)
+			return err
+		}
+		if err := os.Chmod(fileName, perm); err != nil {
+			log.Errorf("chmod file %s err %v", fileName, err)
+			return err
+		}
+	}
+	return nil
 }
 
 func removePath(p string, err error) error {

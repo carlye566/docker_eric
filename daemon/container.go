@@ -1157,7 +1157,9 @@ func (container *Container) isDestinationMounted(destination string) bool {
 func (container *Container) prepareMountPoints() error {
 	for _, config := range container.MountPoints {
 		if len(config.Driver) > 0 {
-			v, err := createVolume(config.Name, config.Driver)
+			logrus.Infof("volume name %s, driver name %s", config.Name, config.Driver)
+			volumeNameWithSize := volume.GetVirtualNameForCephDriver(config.Driver, config.Name, container.Config.VolumeSize)
+			v, err := createVolume(volumeNameWithSize, config.Driver)
 			if err != nil {
 				return err
 			}
@@ -1169,7 +1171,13 @@ func (container *Container) prepareMountPoints() error {
 
 func (container *Container) removeMountPoints() error {
 	for _, m := range container.MountPoints {
+	        containerExitCode := container.GetExitCode()	
 		if m.Volume != nil {
+			logrus.Infof("container %s exitcode %d", container.ID, containerExitCode)
+			if m.Driver == "ceph" && containerExitCode != 0 {
+				logrus.Warnf("container %s skip remove ceph volume %s which exitcode is %d", container.ID, m.Name, containerExitCode)
+				continue
+			}
 			if err := removeVolume(m.Volume); err != nil {
 				return err
 			}

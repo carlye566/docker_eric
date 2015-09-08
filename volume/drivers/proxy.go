@@ -2,7 +2,12 @@
 
 package volumedrivers
 
-import "errors"
+import (
+	"errors"
+	"strings"
+	"github.com/docker/docker/volume"
+	"github.com/Sirupsen/logrus"
+)
 
 type client interface {
 	Call(string, interface{}, interface{}) error
@@ -14,6 +19,7 @@ type volumeDriverProxy struct {
 
 type volumeDriverProxyCreateRequest struct {
 	Name string
+	Size string
 }
 
 type volumeDriverProxyCreateResponse struct {
@@ -26,7 +32,18 @@ func (pp *volumeDriverProxy) Create(name string) (err error) {
 		ret volumeDriverProxyCreateResponse
 	)
 
-	req.Name = name
+	nm := name
+	if strings.Contains(nm, volume.DefaultCephRbdSizeTag) {
+		createInfos := strings.Split(nm, volume.DefaultCephRbdSizeTag)
+		req.Name = createInfos[0]
+		req.Size = createInfos[1]
+		logrus.Infof("create volume %s with tag size %s", createInfos[0], createInfos[1])
+	} else {
+		req.Name = name
+		req.Size = volume.DefaultCephRbdSize
+		logrus.Infof("create volume %s without tag size %s", name, volume.DefaultCephRbdSize)
+	}
+
 	if err = pp.Call("VolumeDriver.Create", req, &ret); err != nil {
 		return
 	}
@@ -52,6 +69,7 @@ func (pp *volumeDriverProxy) Remove(name string) (err error) {
 		ret volumeDriverProxyRemoveResponse
 	)
 
+	name = volume.FiterCephSizeTagofVolumeName(name)
 	req.Name = name
 	if err = pp.Call("VolumeDriver.Remove", req, &ret); err != nil {
 		return
@@ -79,6 +97,7 @@ func (pp *volumeDriverProxy) Path(name string) (mountpoint string, err error) {
 		ret volumeDriverProxyPathResponse
 	)
 
+	name = volume.FiterCephSizeTagofVolumeName(name)
 	req.Name = name
 	if err = pp.Call("VolumeDriver.Path", req, &ret); err != nil {
 		return
@@ -108,6 +127,7 @@ func (pp *volumeDriverProxy) Mount(name string) (mountpoint string, err error) {
 		ret volumeDriverProxyMountResponse
 	)
 
+	name = volume.FiterCephSizeTagofVolumeName(name)
 	req.Name = name
 	if err = pp.Call("VolumeDriver.Mount", req, &ret); err != nil {
 		return
@@ -136,6 +156,7 @@ func (pp *volumeDriverProxy) Unmount(name string) (err error) {
 		ret volumeDriverProxyUnmountResponse
 	)
 
+	name = volume.FiterCephSizeTagofVolumeName(name)
 	req.Name = name
 	if err = pp.Call("VolumeDriver.Unmount", req, &ret); err != nil {
 		return

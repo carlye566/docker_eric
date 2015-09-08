@@ -13,6 +13,7 @@ import (
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/docker/docker/runconfig"
 	"github.com/opencontainers/runc/libcontainer/label"
+	"github.com/docker/docker/volume"
 )
 
 func (daemon *Daemon) ContainerCreate(name string, config *runconfig.Config, hostConfig *runconfig.HostConfig) (string, []string, error) {
@@ -119,7 +120,9 @@ func (daemon *Daemon) Create(config *runconfig.Config, hostConfig *runconfig.Hos
 			return nil, nil, fmt.Errorf("cannot mount volume over existing file, file exists %s", path)
 		}
 
-		v, err := createVolume(name, config.VolumeDriver)
+		volumeNameWithSize := volume.GetVirtualNameForCephDriver(config.VolumeDriver, name, config.VolumeSize)
+
+		v, err := createVolume(volumeNameWithSize, config.VolumeDriver)
 		if err != nil {
 			return nil, nil, err
 		}
