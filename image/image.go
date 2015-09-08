@@ -45,3 +45,19 @@ func ValidateID(id string) error {
 	}
 	return nil
 }
+
+type ByTime struct {
+        Images []Image
+}
+
+func (s ByTime) Len() int {
+        return len(s.Images)
+}
+
+func (s ByTime) Swap(i, j int) {
+        s.Images[i], s.Images[j] = s.Images[j], s.Images[i]
+}
+
+func (s ByTime) Less(i, j int) bool {
+        return s.Images[i].LastUseTime.Before(s.Images[j].LastUseTime)
+}

@@ -3,6 +3,10 @@ package daemon
 import (
 	"fmt"
 	"strings"
+	"strconv"
+	"reflect"
+        "time"
+        "sort"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/api/types"
@@ -11,6 +15,8 @@ import (
 	"github.com/docker/docker/pkg/parsers"
 	"github.com/docker/docker/pkg/stringid"
 	"github.com/docker/docker/utils"
+	"github.com/docker/docker/pkg/units"
+        "github.com/docker/docker/daemon/graphdriver/devmapper"
 )
 
 // FIXME: remove ImageDelete's dependency on Daemon, then move to graph/
@@ -177,4 +183,51 @@ func (daemon *Daemon) canDeleteImage(imgID string, force bool) error {
 		}
 	}
 	return nil
+}
+
+func (daemon *Daemon) ImageClean(cInterval string, rPer string) error {
+        isDevmapper := false
+        var driver *devmapper.Driver
+        if daemon.GraphDriver().String() == "devicemapper" {
+                isDevmapper = true
+                driver = reflect.ValueOf(daemon.GraphDriver()).Elem().FieldByName("ProtoDriver").Elem().Interface().(*devmapper.Driver)
+        }
+        cleanInterval, err := strconv.ParseInt(cInterval, 10, 64)
+        if err != nil {
+                return err
+        }
+        retainPer, err := strconv.ParseFloat(rPer, 64)
+        if err != nil {
+                return err
+        }
+        logrus.Infof("Images clean thread started, graph driver type %s", daemon.GraphDriver().String())
+        for {
+                time.Sleep(time.Duration(cleanInterval))
+                if isDevmapper {
+                        if driver.DataUsePercent() < retainPer {
+                                continue
+                        }
+                        logrus.Infof("Data space used more than %g", retainPer)
+                }
+                images := daemon.Graph().HeadSlice()
+                sort.Sort(image.ByTime{images})
+
+                for _, img := range images {
+                        now := time.Now().UTC()
+                        if !img.LastUseTime.IsZero() {
+                                if _, err := daemon.ImageDelete(img.ID, true, false); err != nil {
+                                        logrus.Errorf("Failed to clean image %s, last use time %s ago", img.ID, units.HumanDuration(now.Sub(img.LastUseTime)), err)
+                                } else {
+                                        logrus.Infof("Cleaned image %s last use time %s ago", img.ID, units.HumanDuration(now.Sub(img.LastUseTime)))
+                                }
+                        }
+                        if isDevmapper {
+                                if driver.DataUsePercent() < retainPer {
+                                        break
+                                }
+                        }
+                }
+        }
+
+        return nil
 }

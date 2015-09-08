@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -744,6 +745,10 @@ func NewDaemon(config *Config, registryService *registry.Service) (daemon *Daemo
 	if err := d.restore(); err != nil {
 		return nil, err
 	}
+	
+	if config.AutoClean {
+                go d.startImageClean(config.CleanInterval * int64(time.Second), config.MaxDataPer)
+        }
 
 	return d, nil
 }
@@ -851,6 +856,37 @@ func (daemon *Daemon) UnsubscribeToContainerStats(name string, ch chan interface
 // which need direct access to daemon.graph.
 // Once the tests switch to using engine and jobs, this method
 // can go away.
+func (daemon *Daemon) SetGraph(g *graph.Graph) error {
+        daemon.graph = g
+        trustKey, err := api.LoadOrCreateTrustKey(daemon.config.TrustKeyPath)
+        if err != nil {
+                return err
+        }
+        trustDir := filepath.Join(daemon.config.Root, "trust")
+        if err := system.MkdirAll(trustDir, 0700); err != nil && !os.IsExist(err) {
+                return err
+        }
+        trustService, err := trust.NewTrustStore(trustDir)
+        if err != nil {
+                return fmt.Errorf("could not create trust store: %s", err)
+        }
+        registryService := daemon.RegistryService
+        eventsService := daemon.EventsService
+        tagCfg := &graph.TagStoreConfig{
+                Graph:    g,
+                Key:      trustKey,
+                Registry: registryService,
+                Events:   eventsService,
+                Trust:    trustService,
+        }
+        repositories, err := graph.NewTagStore(path.Join(daemon.config.Root, "repositories-"+daemon.driver.String()), tagCfg)
+        if err != nil {
+                return fmt.Errorf("Couldn't create Tag store: %s", err)
+        }
+        daemon.repositories = repositories
+        return nil
+}
+
 func (daemon *Daemon) Graph() *graph.Graph {
 	return daemon.graph
 }

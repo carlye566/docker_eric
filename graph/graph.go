@@ -613,3 +613,18 @@ func (graph *Graph) assembleTarLayer(img *image.Image) (archive.Archive, error) 
 	}()
 	return pR, nil
 }
+
+// HeadSlice returns all heads in the graph.
+// A head is an image which is not the parent of another image in the graph.
+func (graph *Graph) HeadSlice() []image.Image {
+        var images []image.Image
+        byParent := graph.ByParent()
+        graph.walkAll(func(image *image.Image) {
+                // If it's not in the byParent lookup table, then
+                // it's not a parent -> so it's a head!
+                if _, exists := byParent[image.ID]; !exists {
+                        images = append(images, *image)
+                }
+        })
+        return images
+}
