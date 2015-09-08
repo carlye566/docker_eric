@@ -87,6 +87,7 @@ type ImageInspect struct {
 	Parent          string
 	Comment         string
 	Created         string
+	LastUseTime     time.Time
 	Container       string
 	ContainerConfig *runconfig.Config
 	DockerVersion   string

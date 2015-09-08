@@ -1290,3 +1290,12 @@ func appendBaseEnv(env []string) []string {
 	}
 	return env
 }
+
+func runImage(image string) (err error) {
+        cmd := exec.Command(dockerBinary, "run", image)
+        _, exitCode, err := runCommandWithOutput(cmd)
+        if err != nil || exitCode != 0 {
+                err = fmt.Errorf("run image %s failed %v", image, err)
+        }
+        return err
+}
