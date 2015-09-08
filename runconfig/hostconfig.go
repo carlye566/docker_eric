@@ -257,6 +257,7 @@ type HostConfig struct {
 	LogConfig        LogConfig
 	CgroupParent     string // Parent cgroup.
 	ConsoleSize      [2]int // Initial console size on Windows
+	HostIP           string
 }
 
 func MergeConfigs(config *Config, hostConfig *HostConfig) *ContainerConfigWrapper {

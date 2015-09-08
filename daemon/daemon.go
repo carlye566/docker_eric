@@ -690,7 +690,10 @@ func NewDaemon(config *Config, registryService *registry.Service) (daemon *Daemo
 	if err != nil {
 		return nil, fmt.Errorf("Couldn't create Tag store repositories-%s: %s", d.driver.String(), err)
 	}
-
+	
+	if !config.DisableBridge && "" == config.Bridge.Iface && "" != config.HostIface {
+                config.Bridge.Iface = config.HostIface
+        }
 	d.netController, err = initNetworkController(config)
 	if err != nil {
 		return nil, fmt.Errorf("Error initializing network controller: %v", err)

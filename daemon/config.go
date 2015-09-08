@@ -38,6 +38,7 @@ type CommonConfig struct {
 	TrustKeyPath   string
 	DefaultNetwork string
 	NetworkKVStore string
+	HostIface      string
 }
 
 // InstallCommonFlags adds command-line options to the top-level flag parser for
@@ -65,4 +66,5 @@ func (config *Config) InstallCommonFlags(cmd *flag.FlagSet, usageFn func(string)
 	cmd.Var(opts.NewListOptsRef(&config.Labels, opts.ValidateLabel), []string{"-label"}, usageFn("Set key=value labels to the daemon"))
 	cmd.StringVar(&config.LogConfig.Type, []string{"-log-driver"}, "json-file", usageFn("Default driver for container logs"))
 	cmd.Var(opts.NewMapOpts(config.LogConfig.Config, nil), []string{"-log-opt"}, usageFn("Set log driver options"))
+	cmd.StringVar(&config.HostIface, []string{"-host-iface"}, "", "Select the host network interface to use")
 }

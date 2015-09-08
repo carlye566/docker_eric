@@ -32,8 +32,10 @@ import (
 	"github.com/docker/libnetwork/netlabel"
 	"github.com/docker/libnetwork/options"
 	"github.com/docker/libnetwork/types"
+	"github.com/docker/libnetwork/netutils"
 	"github.com/opencontainers/runc/libcontainer/configs"
 	"github.com/opencontainers/runc/libcontainer/devices"
+	"github.com/docker/libnetwork/drivers/bridge"
 )
 
 const DefaultPathEnv = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -124,11 +126,38 @@ func (container *Container) createDaemonEnvironment(linkedEnv []string) []string
 		fullHostname = fmt.Sprintf("%s.%s", fullHostname, container.Config.Domainname)
 	}
 	ports,_ := json.Marshal(container.NetworkSettings.Ports)
+	var containerIP string
+        if container.hostConfig.HostIP == "" {
+                if container.daemon.config.HostIface != "" && container.daemon.config.HostIface != bridge.DefaultBridgeName {
+                        interfaceName := container.daemon.config.HostIface
+                        addrv4, _, err := netutils.GetIfaceAddr(interfaceName)
+                        if err != nil {
+                                logrus.Errorf("can not get ip from interface %s, err:%s\n", interfaceName, err)
+                        } else {
+                                container.hostConfig.HostIP = addrv4.(*net.IPNet).IP.String()
+                        }       
+                } else {
+                        iLists := []string { bridge.DefaultFixedIpBridgeName, "eth1", "eth0" } 
+                        for _, iface := range iLists {
+                                addrv4, _, err := netutils.GetIfaceAddr(iface)
+                                if err == nil {
+                                        container.hostConfig.HostIP = addrv4.(*net.IPNet).IP.String()
+                                        break
+                                }
+                                if iface == "eth0" {
+                                        logrus.Errorf("can not get ip from interfaces eth0 or eth1, err:%s\n", err)
+                                }                                               
+                        }
+                }
+        }       
+        containerIP = container.hostConfig.HostIP 
+        logrus.Infof("host ip is %s\n", containerIP)
 	// Setup environment
 	env := []string{
 		"PATH=" + DefaultPathEnv,
 		"HOSTNAME=" + fullHostname,
 		"GAIA_PORT_MAPPING=" + string(ports),
+		"GAIA_HOST_IP=" + containerIP,
 		// Note: we don't set HOME here because it'll get autoset intelligently
 		// based on the value of USER inside dockerinit, but only if it isn't
 		// set already (ie, that can be overridden by setting HOME via -e or ENV

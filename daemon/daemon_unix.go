@@ -31,6 +31,8 @@ import (
 	"github.com/docker/libnetwork/netlabel"
 	"github.com/docker/libnetwork/options"
 	"github.com/opencontainers/runc/libcontainer/label"
+	"github.com/docker/libnetwork/drivers/bridge"
+        "github.com/docker/libnetwork/netutils"
 )
 
 func (daemon *Daemon) Changes(container *Container) ([]archive.Change, error) {
@@ -370,6 +372,15 @@ func initBridgeDriver(controller libnetwork.NetworkController, config *Config) e
 	if err := controller.ConfigureNetworkDriver("bridge", options.Generic{netlabel.GenericData: option}); err != nil {
 		return fmt.Errorf("Error initializing bridge driver: %v", err)
 	}
+
+	if config.Bridge.Iface != "" && config.Bridge.Iface != bridge.DefaultBridgeName {
+                addrv4, _, err := netutils.GetIfaceAddr(config.Bridge.Iface)
+                if err != nil {
+                        return fmt.Errorf("Error can't retrieve host ip address from interface %s, %s\n", config.Bridge.Iface, err) 
+                } else {
+                        logrus.Infof("find ip %s for interface %s\n", addrv4.(*net.IPNet).IP.String(), config.Bridge.Iface)
+                }       
+        }
 
 	netOption := options.Generic{
 		"BridgeName":          config.Bridge.Iface,
