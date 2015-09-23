@@ -826,7 +826,8 @@ func createNetwork(controller libnetwork.NetworkController, dnet string, driver 
 		}
 		networkOption := libnetwork.NetworkOptionGeneric(genericOption)
 		createOptions = append(createOptions, networkOption)
-		return controller.NewNetwork("bridge", "docker", createOptions...)
+		logrus.Debugf("33333333 start to run NewNetwork(bridg, ip, createOptions...)")
+		return controller.NewNetwork("bridge", "ip", createOptions...)
 	}
 
 	return controller.NewNetwork(driver, dnet, createOptions...)
@@ -887,12 +888,13 @@ func (container *Container) AllocateNetwork() error {
 
 	if container.secondaryNetworkRequired(networkDriver) {
 		// Configure Bridge as secondary network for port binding purposes
+		logrus.Debugf("66666666666 start to run configureNetwork")
 		if err := container.configureNetwork("bridge", service, "bridge", false); err != nil {
 			return err
 		}
 	}
-
-	if err := container.configureNetwork(networkName, service, networkDriver, mode.IsDefault()); err != nil {
+	logrus.Debugf("7777777777 start to run configureNetwork")
+	if err := container.configureNetwork(networkName, service, networkDriver, (mode.IsDefault() || mode.IsIP())); err != nil {
 		return err
 	}
 
@@ -903,15 +905,16 @@ func (container *Container) configureNetwork(networkName, service, networkDriver
 	controller := container.daemon.netController
 	n, err := controller.NetworkByName(networkName)
 	if err != nil {
+		logrus.Debugf("1111111111 after run cotroller.NetworkByName ")
 		if _, ok := err.(libnetwork.ErrNoSuchNetwork); !ok || !canCreateNetwork {
 			return err
 		}
-
+		logrus.Debugf("2222222222 start to run createNetwork ")
 		if n, err = createNetwork(controller, networkName, networkDriver); err != nil {
 			return err
 		}
 	}
-
+	logrus.Debugf("4444444444 after run cotroller.createNetwork ")
 	ep, err := n.EndpointByName(service)
 	if err != nil {
 		if _, ok := err.(libnetwork.ErrNoSuchEndpoint); !ok {
