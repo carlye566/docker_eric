@@ -32,6 +32,7 @@ func (n IpcMode) IsContainer() bool {
 	return len(parts) > 1 && parts[0] == "container"
 }
 
+
 func (n IpcMode) Valid() bool {
 	parts := strings.Split(string(n), ":")
 	switch mode := parts[0]; mode {
