@@ -61,6 +61,7 @@ type networkConfiguration struct {
 
 // endpointConfiguration represents the user specified configuration for the sandbox endpoint
 type endpointConfiguration struct {
+	FixIP        net.IP
 	MacAddress   net.HardwareAddr
 	PortBindings []types.PortBinding
 	ExposedPorts []types.TransportPort
@@ -953,11 +954,21 @@ func (d *driver) CreateEndpoint(nid, eid types.UUID, epInfo driverapi.EndpointIn
 	}
 
 	// v4 address for the sandbox side pipe interface
-	ip4, err := ipAllocator.RequestIP(n.bridge.bridgeIPv4, nil)
-	if err != nil {
-		return err
+	var (
+		ip4          net.IP
+		ipv4Addr  =  &net.IPNet{}
+
+	)
+	if epConfig.FixIP != nil {
+		ip4 = epConfig.FixIP
+		ipv4Addr = &net.IPNet{IP: ip4, Mask: n.bridge.bridgeIPv4.Mask}
+	} else {
+		ip4, err = ipAllocator.RequestIP(n.bridge.bridgeIPv4, nil)
+		if err != nil {
+			return err
+		}
+		ipv4Addr = &net.IPNet{IP: ip4, Mask: n.bridge.bridgeIPv4.Mask}
 	}
-	ipv4Addr := &net.IPNet{IP: ip4, Mask: n.bridge.bridgeIPv4.Mask}
 
 	// Down the interface before configuring mac address.
 	if err = netlink.LinkSetDown(sbox); err != nil {
@@ -1335,6 +1346,14 @@ func parseEndpointOptions(epOptions map[string]interface{}) (*endpointConfigurat
 	if opt, ok := epOptions[netlabel.MacAddress]; ok {
 		if mac, ok := opt.(net.HardwareAddr); ok {
 			ec.MacAddress = mac
+		} else {
+			return nil, &ErrInvalidEndpointConfig{}
+		}
+	}
+
+	if opt, ok := epOptions[netlabel.FixIP]; ok {
+		if ip, ok := opt.(net.IP); ok {
+			ec.FixIP = ip
 		} else {
 			return nil, &ErrInvalidEndpointConfig{}
 		}

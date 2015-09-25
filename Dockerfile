@@ -81,7 +81,7 @@ RUN cd /usr/src/lxc \
 
 # Install Go
 ENV GO_VERSION 1.4.2
-RUN curl -sSL https://golang.org/dl/go${GO_VERSION}.src.tar.gz | tar -v -C /usr/local -xz \
+RUN curl -sSL https://storage.googleapis.com/golang/go${GO_VERSION}.src.tar.gz | tar -v -C /usr/local -xz \
 	&& mkdir -p /go/bin
 ENV PATH /go/bin:/usr/local/go/bin:$PATH
 ENV GOPATH /go:/go/src/github.com/docker/docker/vendor
@@ -185,9 +185,10 @@ RUN ./contrib/download-frozen-image.sh /docker-frozen-images \
 # see also "hack/make/.ensure-frozen-images" (which needs to be updated any time this list is)
 
 # Download man page generator
+COPY vendor/src/code.google.com /usr/local/go/src/code.google.com
 RUN set -x \
 	&& export GOPATH="$(mktemp -d)" \
-	&& git clone -b v1.0.3 https://github.com/cpuguy83/go-md2man.git "$GOPATH/src/github.com/cpuguy83/go-md2man" \
+	&& git clone -b v1.0.1 https://github.com/cpuguy83/go-md2man.git "$GOPATH/src/github.com/cpuguy83/go-md2man" \
 	&& git clone -b v1.2 https://github.com/russross/blackfriday.git "$GOPATH/src/github.com/russross/blackfriday" \
 	&& go get -v -d github.com/cpuguy83/go-md2man \
 	&& go build -v -o /usr/local/bin/go-md2man github.com/cpuguy83/go-md2man \

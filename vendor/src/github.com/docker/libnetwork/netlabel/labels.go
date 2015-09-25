@@ -18,6 +18,9 @@ const (
 	// MacAddress constant represents Mac Address config of a Container
 	MacAddress = Prefix + ".endpoint.macaddress"
 
+	// FixIP constant represents fixed ip config of a Container
+	FixIP = Prefix + ".endpoint.fixip"
+
 	// ExposedPorts constant represents exposedports of a Container
 	ExposedPorts = Prefix + ".endpoint.exposedports"
 
