@@ -802,6 +802,18 @@ func (container *Container) buildCreateEndpointOptions() ([]libnetwork.EndpointO
 
 		createOptions = append(createOptions, libnetwork.EndpointOptionGeneric(genericOption))
 	}
+	//added fixIP to libnetwork options
+	if container.hostConfig.NetworkMode.IsIP() && container.Config.IP != "" {
+		ip := net.ParseIP(container.Config.IP)
+		if ip == nil {
+			return nil, fmt.Errorf("--ip: invalid ip: %s", ip)
+		}
+
+		genericOption := options.Generic{
+			netlabel.FixIP: ip,
+		}
+		createOptions = append(createOptions, libnetwork.EndpointOptionGeneric(genericOption))
+	}
 
 	return createOptions, nil
 }
@@ -834,12 +846,23 @@ func createNetwork(controller libnetwork.NetworkController, dnet string, driver 
 		createOptions = append(createOptions, networkOption)
 	}
 
+	//fixed ip
+	if runconfig.NetworkMode(driver).IsIP() {
+		genericOption[netlabel.GenericData] = map[string]interface{}{
+			"BridgeName":            "docker",
+			"AllowNonDefaultBridge": "true",
+		}
+		networkOption := libnetwork.NetworkOptionGeneric(genericOption)
+		createOptions = append(createOptions, networkOption)
+		return controller.NewNetwork("bridge", "ip", createOptions...)
+	}
+
 	return controller.NewNetwork(driver, dnet, createOptions...)
 }
 
 func (container *Container) secondaryNetworkRequired(primaryNetworkType string) bool {
 	switch primaryNetworkType {
-	case "bridge", "none", "host", "container":
+	case "bridge", "none", "host", "container", "ip":
 		return false
 	}
 
@@ -897,7 +920,7 @@ func (container *Container) AllocateNetwork() error {
 		}
 	}
 
-	if err := container.configureNetwork(networkName, service, networkDriver, mode.IsDefault()); err != nil {
+	if err := container.configureNetwork(networkName, service, networkDriver, (mode.IsDefault() || mode.IsIP())); err != nil {
 		return err
 	}
 
