@@ -10,6 +10,7 @@ import (
 	"github.com/docker/docker/pkg/nat"
 	"github.com/docker/docker/pkg/parsers"
 	"github.com/docker/docker/pkg/units"
+	"net"
 )
 
 var (
@@ -90,6 +91,7 @@ func Parse(cmd *flag.FlagSet, args []string) (*Config, *HostConfig, *flag.FlagSe
 		flNetMode         = cmd.String([]string{"-net"}, "default", "Set the Network mode for the container")
 		flMacAddress      = cmd.String([]string{"-mac-address"}, "", "Container MAC address (e.g. 92:d0:c6:0a:29:33)")
 		flIpcMode         = cmd.String([]string{"-ipc"}, "", "IPC namespace to use")
+		flIP              = cmd.String([]string{"ip", "-ip"}, "", "Fixed IP address for the container.")
 		flRestartPolicy   = cmd.String([]string{"-restart"}, "no", "Restart policy to apply when a container exits")
 		flReadonlyRootfs  = cmd.Bool([]string{"-read-only"}, false, "Mount the container's root filesystem as read only")
 		flLoggingDriver   = cmd.String([]string{"-log-driver"}, "", "Logging driver for container")
@@ -308,6 +310,12 @@ func Parse(cmd *flag.FlagSet, args []string) (*Config, *HostConfig, *flag.FlagSe
 		return nil, nil, cmd, fmt.Errorf("--uts: invalid UTS mode")
 	}
 
+	if *flIP != "" {
+		if parsedIP := net.ParseIP(*flIP); parsedIP == nil {
+			return nil, nil, cmd, fmt.Errorf("--ip: invalid ip: %s", *flIP)
+		}
+	}
+
 	restartPolicy, err := ParseRestartPolicy(*flRestartPolicy)
 	if err != nil {
 		return nil, nil, cmd, err
@@ -321,6 +329,7 @@ func Parse(cmd *flag.FlagSet, args []string) (*Config, *HostConfig, *flag.FlagSe
 	config := &Config{
 		Hostname:        hostname,
 		Domainname:      domainname,
+		IP:              *flIP,
 		ExposedPorts:    ports,
 		User:            *flUser,
 		Tty:             *flTty,

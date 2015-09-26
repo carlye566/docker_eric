@@ -117,6 +117,7 @@ func NewCommand(parts ...string) *Command {
 type Config struct {
 	Hostname        string
 	Domainname      string
+	IP              string
 	User            string
 	AttachStdin     bool
 	AttachStdout    bool
